@@ -4,11 +4,12 @@ var Ignore = {
   BULLET: 1 << 2,
 };
 
-var BuildGame = function() {
+var BuildGame = function(owner) {
+  this.owner = d3.select(owner);
 };
 
-BuildGame.prototype.makeHtml = function(owner) {
-  owner = d3.select(owner);
+BuildGame.prototype.makeHtml = function() {
+  owner = this.owner;
 
   var buyThings = [
     {name: 'mook', clazz: Mook},
@@ -28,8 +29,11 @@ BuildGame.prototype.makeHtml = function(owner) {
   };
 
   var endDayClick = function() {
+    ShootGame.GAME.play();
+    /*
     ShootGame.GAME.setLevel(
-        new Level(Level.loadFromString(Level.randomOfHeight(2)), DEFAULT_BLOCKS));
+        Level.loadFromString(Level.randomOfHeight(2), DEFAULT_BLOCKS));
+    */
   };
 
   var buttons = [
@@ -127,6 +131,7 @@ LevelEdit.prototype.render = function(renderer) {
 };
 
 var ShootGame = function() {
+  this.ticking = false;
   this.hero_ = new Hero(Block.SIZE + 4, Block.SIZE + 4);
   this.levelEdit_ = new LevelEdit(this);
   this.setLevel(null);
@@ -145,6 +150,11 @@ ShootGame.addEnt = function(ents, ent) {
     }
   }
   ents.push(ent);
+};
+
+ShootGame.prototype.play = function() {
+  this.hero_.dead = false;
+  this.ticking = true;
 };
 
 ShootGame.prototype.addBullet = function(bullet) {
@@ -181,6 +191,7 @@ ShootGame.tickEntFn = function(t) {
 };
 
 ShootGame.prototype.setLevel = function(level) {
+  this.ticking = false;
   this.hero_ = new Hero(Block.SIZE + 4, Block.SIZE + 4);
   this.hero_.collider_.aabb.setXY(Block.SIZE, Block.SIZE);
   this.level_ = level;
@@ -193,20 +204,15 @@ ShootGame.prototype.setLevel = function(level) {
 };
 
 ShootGame.prototype.nextPossess = function() {
-  var foundI = this.possessI + 1;
-  if (foundI >= this.enemies.length) {
-    foundI = 0;
-  }
-  while (foundI != this.possessI) {
+  var foundI = -1;
+  for (var i = 0; i < this.enemies.length; ++i) {
+    foundI = this.possessI + i + 1;
+    foundI %= this.enemies.length;
     if (this.enemies[foundI] && !this.enemies[foundI].dead) {
       break;
     }
-    foundI++;
-    if (foundI >= this.enemies.length) {
-      foundI = 0;
-    }
   }
-  if (foundI != this.possessI) {
+  if (foundI != this.possessI && foundI >= 0) {
     if (this.possessI >= 0 && this.possessI < this.enemies.length) {
       this.enemies[this.possessI].possess(false);
     }
@@ -217,6 +223,8 @@ ShootGame.prototype.nextPossess = function() {
 ShootGame.prototype.tick = function(t) {
   this.t += t;
   this.t %= 1000;
+  if (!this.ticking) return;
+
   if (KB.keyPressed(Keys.TAB)) {
     this.nextPossess();
   } else if (!this.enemies[this.possessI] || this.enemies[this.possessI].dead) {
@@ -227,6 +235,19 @@ ShootGame.prototype.tick = function(t) {
 
   var collide = this.level_.collideEnt(this.hero_, t);
   this.hero_.handleLevelCollide(collide);
+  var heroBlock = this.level_.blockAt(
+    this.hero_.collider_.cx(), this.hero_.collider_.cy());
+  if (heroBlock && heroBlock == 'o' && !this.hero_.dead) {
+    this.hero_.dead = true;
+    for (var z = 0; z < 5; ++z) {
+      this.addParticle(new Explosion(
+          this.hero_.collider_.cx() + randFlt(-10, 10),
+          this.hero_.collider_.cy() + randFlt(-10, 10),
+          randFlt(40, 60), 1));
+    }
+    this.addParticle(new NextLevelParticle());
+  }
+
   this.ents.forEach(bind(function(ent) {
     if (!ent.dead) {
       var collide = this.level_.collideEnt(ent, t);
@@ -313,6 +334,7 @@ var AiController = function(actor) {
 inherit(AiController, Controller);
 
 AiController.prototype.tick = function(t) {
+  this.doJump = false;
   var block = ShootGame.GAME.level_.blockAt(
       this.actor.collider_.cx(), this.actor.collider_.cy());
   if (block == '>') {
@@ -321,8 +343,6 @@ AiController.prototype.tick = function(t) {
     this.dir = -1;
   } else if (block == '^') {
     this.doJump = true;
-  } else {
-    this.doJump = false;
   }
 };
 AiController.prototype.left = function() { return this.dir < 0; }
@@ -526,6 +546,40 @@ DeathFall.prototype.render = function(renderer) {
   ctx.restore();
 };
 
+var NextLevelParticle = function(opt_t) {
+  baseCtor(this, opt_t || 1);
+  this.done = false;
+};
+inherit(NextLevelParticle, Particle);
+
+NextLevelParticle.prototype.tick = function(t) {
+  base(this, 'tick', t);
+  if (this.dead && !this.done) {
+    this.done = true;
+    ShootGame.GAME.setLevel(
+        Level.loadFromString(Level.randomOfHeight(2), DEFAULT_BLOCKS));
+  }
+};
+
+var Explosion = function(x, y, r, t) {
+  baseCtor(this, t);
+  this.x = x;
+  this.y = y;
+  this.r = r;
+  this.color = pick(['#f00', '#f6cb55', '#e5d866']);
+};
+inherit(Explosion, Particle);
+
+Explosion.prototype.render = function(renderer) {
+  var ctx = renderer.context();
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = this.color;
+  ctx.beginPath();
+  ctx.arc(this.x, this.y, this.r * (1 - 0.9) + (1 - this.alpha()) * this.r * 0.9, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+};
+
 function Block(render, collideSides) {
   this.render = render;
   this.collideSides_ = collideSides;
@@ -592,6 +646,14 @@ var DEFAULT_BLOCKS = {
        },
        Block.COLLIDE_TOP),
 
+  'o': new Block(function(renderer, x, y) {
+         var ctx = renderer.context();
+         ctx.fillStyle = '#1f1';
+         ctx.fillRect(x, y, Block.SIZE, Block.SIZE);
+       },
+       Block.COLLIDE_NONE),
+
+
   '>': new Block(function(renderer, x, y) {
          var ctx = renderer.context();
          ctx.fillStyle = '#111';
@@ -624,21 +686,21 @@ for (var b in DEFAULT_BLOCKS) {
 
 var RIGHT_BLOCKS = [
   [
-    ' ----   ----   ----',
+    'R----   ----   ----',
     '                   ',
     '                   ',
     '>                  ',
-    '>^                 ',
+    '>^                o',
     '>^2222      ^^22222',
     '1111111111111111111',
   ],
   [
-    '>                21',
+    'R                21',
     '--- ^--- ^---   <21',
     '               <221',
     '    221111111111111',
     '    22             ',
-    '>   ##       ^222  ',
+    '>   ##       ^222 o',
     '1111111111111111111',
   ],
 ];
@@ -667,20 +729,20 @@ var RIGHT_DOWN_BLOCKS = [
 var LEFT_BLOCKS = [
   [
     ' ----    ----   -- ',
-    '                   ',
+    '                  L',
     '                   ',
     '                   ',
     '       22^^^    ^^ ',
-    '      2222^^  22^^<',
+    'o     2222^^  22^^<',
     '1111111111111111111',
   ],
   [
     ' ----    ----   -- ',
-    '                   ',
+    '                  L',
     '              <<   ',
     '              2<   ',
     '       22^^^  2^   ',
-    '      2222^^  22^^<',
+    'o     2222^^  22^^<',
     '1111111111111111111',
   ],
 ];
@@ -701,11 +763,28 @@ Level.randomOfHeight = function(floors) {
   var dir = 1;
   var roof = '1111111111111111111111111111111111111111';
   var lines = [roof];
+  var first = true;
   for (; floors > 0; --floors) {
     var norm = dir > 0 ? RIGHT_BLOCKS : LEFT_BLOCKS;
     var down = dir > 0 ? RIGHT_DOWN_BLOCKS : LEFT_DOWN_BLOCKS;
     var leftHalf = pick(norm);
     var rightHalf = pick(floors == 1 ? norm : down);
+    if (!first) {
+      leftHalf = leftHalf.map(function(f) {
+        return f.replace(/L/g, '<').replace(/R/g, '>');
+      });
+    }
+    if (!floors == 1) {
+      rightHalf = rightHalf.map(function(f) {
+        return f.replace(/o/g, ' ');
+      });
+    }
+    rightHalf = rightHalf.map(function(f) {
+      return f.replace(/L/g, '<').replace(/R/g, '>');
+    });
+    leftHalf = leftHalf.map(function(f) {
+      return f.replace(/o/g, ' ');
+    });
     if (dir < 0) {
       var t = leftHalf;
       leftHalf = rightHalf;
@@ -716,8 +795,8 @@ Level.randomOfHeight = function(floors) {
       lines.push(line);
     }
     dir *= -1;
+    first = false;
   }
-  lines.push(roof);
   return lines.join('\n') + '\n';
 };
 
@@ -743,10 +822,11 @@ function Level(blocks, blockMap) {
   this.blockMap_ = blockMap;
 };
 
-Level.loadFromString = function(str) {
+Level.loadFromString = function(str, blockMap) {
   var blocks = [];
   var rowLen = -1;
   var lineNum = 1;
+  var start = null;
   do {
     var row = [];
     var newline = str.indexOf('\n');
@@ -757,6 +837,13 @@ Level.loadFromString = function(str) {
     }
     for (var i = 0; i < lineStr.length; ++i) {
       var code = lineStr.charCodeAt(i);
+      if (code == 'L'.charCodeAt(0)) {
+        code = '<'.charCodeAt(0);
+        start = [blocks.length, i];
+      } else if (code == 'R'.charCodeAt(0)) {
+        code = '>'.charCodeAt(0);
+        start = [blocks.length, i];
+      }
       if (code == 32) {
         row.push(0);
       } else {
@@ -771,7 +858,9 @@ Level.loadFromString = function(str) {
       throw Error('Wrong line length at line ' + lineNum);
     }
   } while (str);
-  return blocks;
+  var level= new Level(blocks, blockMap);
+  level.start = start;
+  return level;
 };
 
 Level.prototype.blockInLine_ = function(x, y, vertical, dir) {

@@ -35,17 +35,11 @@
       var stepping = true;
 
       var shootGame = new ShootGame();
-      //var level = new Level(Level.loadFromString(LEVEL_1), DEFAULT_BLOCKS);
-      var level = new Level(Level.loadFromString(Level.randomOfHeight(2)), DEFAULT_BLOCKS);
+      var level = Level.loadFromString(Level.randomOfHeight(1), DEFAULT_BLOCKS);
       shootGame.setLevel(level);
 
-      var buildGame = new BuildGame();
-      buildGame.makeHtml(document.getElementById('build'));
-
-      shootGame.addEnemy(new Mook(150, 50, {maxSpeed: 70}));
-      shootGame.addEnemy(new Mook(250, 50, {maxSpeed: 70}));
-      shootGame.addEnemy(new Mook(250, 150, {maxSpeed: 70}));
-      shootGame.nextPossess();
+      var buildGame = new BuildGame(document.getElementById('build'));
+      buildGame.makeHtml();
 
       var gameStruct = {
         elem: gameElem,
