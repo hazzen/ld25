@@ -89,6 +89,21 @@ ShootGame.prototype.tick = function(t) {
   this.ents.forEach(tickFn);
   this.bullets.forEach(tickFn);
 
+  var collides = this.bullets.concat(this.enemies)
+      .filter(function(f) { return !f.dead; })
+      .map(function(f) { return f.collider_; });
+  Collider.stepAll(collides, t);
+  this.bullets.forEach(function(bullet) {
+    if (bullet.collider_.lastCollision) {
+      bullet.dead = true;
+    }
+  });
+  this.enemies.forEach(function(enemy) {
+    if (enemy.collider_.lastCollision) {
+      enemy.dead = true;
+    }
+  });
+
   //Collider.stepAll([this.hero_.collider_], t);
 };
 
@@ -113,6 +128,7 @@ var Bullet = function(x, y, vx, opts) {
   var w = opts.w || 4;
   var h = opts.h || 4;
   this.collider_ = Collider.fromCenter(x, y, w, h, vx, 0);
+  this.collider_.ignore = 1 << 0;
 };
 
 Bullet.prototype.handleLevelCollide = function(collide) {
@@ -218,6 +234,7 @@ Hero.prototype.render = function(renderer) {
 
 var Mook = function(x, y, opts) {
   baseCtor(this, x, y, opts.w || 8, opts.h || 16);
+  this.collider_.ignore = 1 << 1;
 };
 inherit(Mook, Actor);
 

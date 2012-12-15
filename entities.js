@@ -66,6 +66,7 @@ Collider.collideAll_ = function(colliders, t) {
     var isStatic = colliders[i].static;
     for (var j = i + 1; j < len; ++j) {
       if (isStatic && colliders[j].static) continue;
+      if (colliders[i].ignore & colliders[j].ignore) continue;
       var txp = geom.Range.collides(
           colliders[i].aabb.xRange(irange), colliders[i].vx * t,
           colliders[j].aabb.xRange(jrange), colliders[j].vx * t,
