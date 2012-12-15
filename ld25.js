@@ -180,7 +180,7 @@ var Actor = function(x, y, w, h, opt_opts) {
 
   this.opts = opt_opts || {};
   this.opts.shotDelay = this.opts.shotDelay || 0.2;
-  this.maxSpeed = this.opts.maxSpeed || 160;
+  this.maxSpeed = this.opts.maxSpeed || 80;
 };
 
 Actor.prototype.tick = function(t) {
@@ -209,7 +209,7 @@ Actor.prototype.tick = function(t) {
   if (this.controller.jump()) {
     if (!this.jumping) {
       this.jumping = true;
-      this.collider_.vy = -130;
+      this.collider_.vy = -100;
     }
   }
   if (this.falling) {
@@ -300,21 +300,36 @@ var DEFAULT_BLOCKS = {
 
   '2': new Block(function(renderer, x, y) {
          var ctx = renderer.context();
-         ctx.fillStyle = 'rgb(0, 128, 0)';
+         ctx.fillStyle = 'rgb(126, 106, 95)';
          ctx.fillRect(x, y, Block.SIZE, Block.SIZE);
+         ctx.fillStyle = 'rgb(126, 89, 70)';
+         ctx.fillRect(x + 2, y + 2, Block.SIZE - 4, Block.SIZE - 4);
+         ctx.fillStyle = 'rgb(70, 56, 53)';
+         for (var i = 1; i < 3; ++i) {
+           ctx.fillRect(x + i * Block.SIZE / 3 - 1, y + 2, 2, Block.SIZE - 4);
+         }
        },
        Block.COLLIDE_ALL),
 
   '-': new Block(function(renderer, x, y) {
          var ctx = renderer.context();
-         ctx.fillStyle = 'rgb(128, 128, 128)';
+         ctx.fillStyle = '#666';
          ctx.fillRect(x, y, Block.SIZE, 4);
+
+         ctx.fillStyle = 'rgba(255, 224, 122, 0.5)';
+         ctx.beginPath();
+         ctx.moveTo(x + Block.SIZE / 4, y + 4);
+         ctx.lineTo(x + 3 * Block.SIZE / 4, y + 4);
+         ctx.lineTo(x + 2 * Block.SIZE, y + 2 * Block.SIZE);
+         ctx.lineTo(x - Block.SIZE, y + 2 * Block.SIZE);
+         ctx.closePath();
+         ctx.fill();
        },
        Block.COLLIDE_TOP),
 
   '>': new Block(function(renderer, x, y) {
          var ctx = renderer.context();
-         ctx.fillStyle = '#333';
+         ctx.fillStyle = '#111';
          ctx.fillRect(x, y, Block.SIZE / 2, Block.SIZE);
          ctx.fillRect(x + Block.SIZE / 2, y + Block.SIZE / 4, Block.SIZE / 2, Block.SIZE / 2);
        },
@@ -322,7 +337,7 @@ var DEFAULT_BLOCKS = {
 
   '<': new Block(function(renderer, x, y) {
          var ctx = renderer.context();
-         ctx.fillStyle = '#333';
+         ctx.fillStyle = '#111';
          ctx.fillRect(x + Block.SIZE / 2, y, Block.SIZE / 2, Block.SIZE);
          ctx.fillRect(x, y + Block.SIZE / 4, Block.SIZE / 2, Block.SIZE / 2);
        },
@@ -330,7 +345,7 @@ var DEFAULT_BLOCKS = {
 
   '^': new Block(function(renderer, x, y) {
          var ctx = renderer.context();
-         ctx.fillStyle = '#333';
+         ctx.fillStyle = '#111';
          ctx.fillRect(x, y, Block.SIZE, Block.SIZE / 2);
          ctx.fillRect(x + Block.SIZE / 4, y + Block.SIZE / 2, Block.SIZE / 2, Block.SIZE / 2);
        },
@@ -342,21 +357,21 @@ for (var b in DEFAULT_BLOCKS) {
   DEFAULT_BLOCKS[b.charCodeAt(0)] = DEFAULT_BLOCKS[b];
 }
 
-var DEFAULT_LEVEL = (
+var LEVEL_1 = (
   '1111111111111111111111111111111111111111\n' +
+  '1 ----    ----    ----    ----    ---- 1\n' +
   '1                                      1\n' +
-  '1  ---     -----                       1\n' +
   '1                                      1\n' +
   '1                                      1\n' +
   '1                                      1\n' +
   '1>^2222      ^^22222                   1\n' +
   '11111111111111111111111111111111       1\n' +
-  '1                                     <1\n' +
-  '1  ---     -----                      <1\n' +
-  '1                                     <1\n' +
+  '1 ----    ----    ----    ----         1\n' +
   '1                                     <1\n' +
   '1                                     <1\n' +
-  '1  2222^^      22222^^          <<<<<<<1\n' +
+  '1                                     <1\n' +
+  '1                                     <1\n' +
+  '1      2222^^      22222^^      <<<<<<<1\n' +
   '1111111111111111111111111111111111111111\n');
 
 function Level(blocks, blockMap) {
