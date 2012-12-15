@@ -36,7 +36,7 @@
       var buildGame = new BuildGame();
       buildGame.makeHtml(document.getElementById('build'));
 
-      var mook = new Mook(150, 50, {});
+      var mook = new Mook(150, 50, {maxSpeed: 70});
       shootGame.addEnemy(mook);
 
       var gameStruct = {

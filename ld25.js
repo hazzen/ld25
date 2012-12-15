@@ -124,6 +124,31 @@ Controller.prototype.right = function() { return false; }
 Controller.prototype.jump = function() { return false; }
 Controller.prototype.shoot = function() { return false; }
 
+var AiController = function(actor) {
+  baseCtor(this);
+  this.actor = actor;
+  this.dir = 1;
+  this.doJump = false;
+};
+inherit(AiController, Controller);
+
+AiController.prototype.tick = function(t) {
+  var block = ShootGame.GAME.level_.blockAt(
+      this.actor.collider_.cx(), this.actor.collider_.cy());
+  if (block == '>') {
+    this.dir = 1;
+  } else if (block == '<') {
+    this.dir = -1;
+  } else if (block == '^') {
+    this.doJump = true;
+  } else {
+    this.doJump = false;
+  }
+};
+AiController.prototype.left = function() { return this.dir < 0; }
+AiController.prototype.right = function() { return this.dir > 0; }
+AiController.prototype.jump = function() { return this.doJump; }
+
 var Bullet = function(x, y, vx, opts) {
   var w = opts.w || 4;
   var h = opts.h || 4;
@@ -155,23 +180,25 @@ var Actor = function(x, y, w, h, opt_opts) {
 
   this.opts = opt_opts || {};
   this.opts.shotDelay = this.opts.shotDelay || 0.2;
+  this.maxSpeed = this.opts.maxSpeed || 160;
 };
 
 Actor.prototype.tick = function(t) {
+  this.controller.tick(t);
   this.nextShot -= t;
   var down = false;
   if (this.controller.left()) {
     this.facing = -1;
-    this.collider_.vx -= t * 160;
+    this.collider_.vx -= t * this.maxSpeed;
     down = true;
   }
   if (this.controller.right()) {
     this.facing = 1;
-    this.collider_.vx += t * 160;
+    this.collider_.vx += t * this.maxSpeed;
     down = true;
   }
-  if (Math.abs(this.collider_.vx) > 160) {
-    this.collider_.vx = sgn(this.collider_.vx) * 160;
+  if (Math.abs(this.collider_.vx) > this.maxSpeed) {
+    this.collider_.vx = sgn(this.collider_.vx) * this.maxSpeed;
   } else if (Math.abs(this.collider_.vx) > 0.01) {
     this.collider_.vx -= sgn(this.collider_.vx) *
         Math.min(t * 50, Math.abs(this.collider_.vx));
@@ -233,8 +260,9 @@ Hero.prototype.render = function(renderer) {
 };
 
 var Mook = function(x, y, opts) {
-  baseCtor(this, x, y, opts.w || 8, opts.h || 16);
+  baseCtor(this, x, y, opts.w || 8, opts.h || 16, opts);
   this.collider_.ignore = 1 << 1;
+  this.controller = new AiController(this);
 };
 inherit(Mook, Actor);
 
@@ -282,7 +310,32 @@ var DEFAULT_BLOCKS = {
          ctx.fillStyle = 'rgb(128, 128, 128)';
          ctx.fillRect(x, y, Block.SIZE, 4);
        },
-       Block.COLLIDE_TOP)
+       Block.COLLIDE_TOP),
+
+  '>': new Block(function(renderer, x, y) {
+         var ctx = renderer.context();
+         ctx.fillStyle = '#333';
+         ctx.fillRect(x, y, Block.SIZE / 2, Block.SIZE);
+         ctx.fillRect(x + Block.SIZE / 2, y + Block.SIZE / 4, Block.SIZE / 2, Block.SIZE / 2);
+       },
+       Block.COLLIDE_NONE),
+
+  '<': new Block(function(renderer, x, y) {
+         var ctx = renderer.context();
+         ctx.fillStyle = '#333';
+         ctx.fillRect(x + Block.SIZE / 2, y, Block.SIZE / 2, Block.SIZE);
+         ctx.fillRect(x, y + Block.SIZE / 4, Block.SIZE / 2, Block.SIZE / 2);
+       },
+       Block.COLLIDE_NONE),
+
+  '^': new Block(function(renderer, x, y) {
+         var ctx = renderer.context();
+         ctx.fillStyle = '#333';
+         ctx.fillRect(x, y, Block.SIZE, Block.SIZE / 2);
+         ctx.fillRect(x + Block.SIZE / 4, y + Block.SIZE / 2, Block.SIZE / 2, Block.SIZE / 2);
+       },
+
+       Block.COLLIDE_NONE),
 };
 
 for (var b in DEFAULT_BLOCKS) {
@@ -294,16 +347,16 @@ var DEFAULT_LEVEL = (
   '1                                      1\n' +
   '1  ---     -----                       1\n' +
   '1                                      1\n' +
-  '1      ---                             1\n' +
   '1                                      1\n' +
-  '1  2222        22222                   1\n' +
+  '1                                      1\n' +
+  '1>^2222      ^^22222                   1\n' +
   '11111111111111111111111111111111       1\n' +
-  '1                                      1\n' +
-  '1  ---     -----                       1\n' +
-  '1                                      1\n' +
-  '1      ---                             1\n' +
-  '1                                      1\n' +
-  '1  2222        22222                   1\n' +
+  '1                                     <1\n' +
+  '1  ---     -----                      <1\n' +
+  '1                                     <1\n' +
+  '1                                     <1\n' +
+  '1                                     <1\n' +
+  '1  2222^^      22222^^          <<<<<<<1\n' +
   '1111111111111111111111111111111111111111\n');
 
 function Level(blocks, blockMap) {
@@ -428,6 +481,16 @@ Level.prototype.collideEnt = function(ent, t) {
   struct.yl = sy.lo;
   struct.yh = sy.hi;
   return struct;
+};
+
+Level.prototype.blockAt = function(x, y) {
+  var bx = Math.floor(x / Block.SIZE);
+  var by = Math.floor(y / Block.SIZE);
+  var blockI = this.blocks_[by][bx];
+  if (blockI) {
+    return String.fromCharCode(blockI);
+  }
+  return '';
 };
 
 Level.prototype.render = function(renderer) {
