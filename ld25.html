@@ -1,0 +1,44 @@
+<html>
+  <head>
+    <title>ld25 - you are the villain</title>
+    <link rel='stylesheet' type='text/css' href='ld25.css'>
+    <script type='text/javascript' src='http://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js'></script>
+    <script type='text/javascript' src='base.js'></script>
+    <script type='text/javascript' src='pidgine.js'></script>
+    <script type='text/javascript' src='renderer.js'></script>
+    <script type='text/javascript' src='entities.js'></script>
+  </head>
+  <body>
+    <div>
+    <div id="game" tabindex="0">
+    </div>
+
+    <script type="text/javascript">
+      DEBUG = false;
+      FRAME_RATE = 60;
+
+      var gameElem = document.getElementById('game');
+      var daRenderer = new Renderer(gameElem, 640, 480);
+
+      var stepping = false;
+
+      var gameStruct = {
+        elem: gameElem,
+        tick: function(t) {
+          if (KB.keyPressed('s')) {
+            stepping = !stepping;
+          }
+          if (stepping || KB.keyPressed('n')) {
+          }
+        },
+        render: function() {
+          daRenderer.render(function() {
+            var ctx = daRenderer.context();
+          });
+        }
+      };
+
+      Pidgine.run(gameStruct);
+    </script>
+  </body>
+</html>
