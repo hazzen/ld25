@@ -167,6 +167,7 @@ Rgb.prototype.toRgbString = function() {
 };
 
 Keys = {
+  TAB: 9,
   LEFT: 37,
   UP: 38,
   RIGHT: 39,

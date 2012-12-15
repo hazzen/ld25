@@ -1,6 +1,7 @@
 var Ignore = {
   MOOK: 1 << 0,
-  BULLET: 1 << 1,
+  HERO: 1 << 1,
+  BULLET: 1 << 2,
 };
 
 var BuildGame = function() {
@@ -28,6 +29,7 @@ var ShootGame = function() {
   this.ents = [];
   this.enemies = [];
   this.bullets = [];
+  this.possessI = -1;
   ShootGame.GAME = this;
 };
 ShootGame.GAME = null;
@@ -76,7 +78,30 @@ ShootGame.prototype.setLevel = function(level) {
   this.level_ = level;
 };
 
+ShootGame.prototype.nextPossess = function() {
+  var foundI = this.possessI + 1;
+  while (foundI != this.possessI) {
+    if (foundI >= this.enemies.length) {
+      foundI = 0;
+    }
+    if (this.enemies[foundI] && !this.enemies[foundI].dead) {
+      break;
+    }
+    foundI++;
+  }
+  if (foundI != this.possessI) {
+    if (this.possessI >= 0 && this.possessI < this.enemies.length) {
+      this.enemies[this.possessI].possess(false);
+    }
+    this.enemies[foundI].possess(true);
+    this.possessI = foundI;
+  }
+};
 ShootGame.prototype.tick = function(t) {
+  if (KB.keyPressed(Keys.TAB)) {
+    this.nextPossess();
+  }
+
   this.hero_.tick(t);
 
   var collide = this.level_.collideEnt(this.hero_, t);
@@ -155,11 +180,21 @@ AiController.prototype.right = function() { return this.dir > 0; }
 AiController.prototype.jump = function() { return this.doJump; }
 AiController.prototype.shoot = function() { return true; }
 
+var KbController = function() {
+  baseCtor(this);
+};
+inherit(KbController, Controller);
+
+KbController.prototype.left = function() { return KB.keyDown(Keys.LEFT); };
+KbController.prototype.right = function() { return KB.keyDown(Keys.RIGHT); };
+KbController.prototype.jump = function() { return KB.keyDown('z'); };
+KbController.prototype.shoot = function() { return KB.keyDown('x'); };
+
 var Bullet = function(x, y, vx, opts) {
   var w = opts.w || 4;
   var h = opts.h || 4;
   this.collider_ = Collider.fromCenter(x, y, w, h, vx, 0);
-  this.collider_.ignore = Ignore.BULLET;
+  this.collider_.ignore = opts.ignore;
 };
 
 Bullet.prototype.handleLevelCollide = function(collide) {
@@ -228,7 +263,7 @@ Actor.prototype.tick = function(t) {
         this.collider_.cx(),// + this.facing * this.collider_.w() / 2,
         this.collider_.cy(),
         this.facing * 160 * 1.5,
-        {}));
+        {ignore: this.opts.bulletIgnore}));
   }
 };
 
@@ -249,15 +284,11 @@ Actor.prototype.handleLevelCollide = function(collide) {
 };
 
 var Hero = function(x, y) {
-  baseCtor(this, x, y, 8, 16);
+  baseCtor(this, x, y, 8, 16, {
+    bulletIgnore: Ignore.HERO | Ignore.BULLET,
+  });
 
   this.controller = new AiController(this);
-  /*
-  this.controller.left = function() { return KB.keyDown(Keys.LEFT); };
-  this.controller.right = function() { return KB.keyDown(Keys.RIGHT); };
-  this.controller.jump = function() { return KB.keyDown('z'); };
-  this.controller.shoot = function() { return KB.keyDown('x'); };
-  */
 };
 inherit(Hero, Actor);
 
@@ -269,19 +300,36 @@ Hero.prototype.render = function(renderer) {
 };
 
 var Mook = function(x, y, opts) {
+  opts.bulletIgnore = Ignore.MOOK | Ignore.BULLET;
   baseCtor(this, x, y, opts.w || 8, opts.h || 16, opts);
   this.collider_.ignore = Ignore.MOOK;
-  //this.controller = new AiController(this);
+  this.possessed = false;
 };
 inherit(Mook, Actor);
 
+Mook.prototype.possess = function(doPossess) {
+  if (doPossess == this.possessed) {
+    return;
+  }
+  this.possessed = doPossess;
+  if (this.possessed) {
+    this.oldController = this.controller;
+    this.controller = new KbController();
+  } else {
+    this.controller = this.oldController;
+  }
+};
+
 Mook.prototype.render = function(renderer) {
   var ctx = renderer.context();
-  ctx.fillStyle = '#f56f58';
+  if (this.possessed) {
+    ctx.fillStyle = '#f9a494';
+  } else {
+    ctx.fillStyle = '#f56f58';
+  }
   ctx.fillRect(this.collider_.x(), this.collider_.y(),
                this.collider_.w(), this.collider_.h());
 };
-
 
 function Block(render, collideSides) {
   this.render = render;
