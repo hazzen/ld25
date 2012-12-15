@@ -12,9 +12,9 @@ Collider = function(aabb, vx, vy) {
   this.ovy = vy;
 };
 
-Collider.fromCenter = function(x, y, w, h, vx, vy, mass) {
+Collider.fromCenter = function(x, y, w, h, vx, vy) {
   var aabb = new geom.AABB(x - w / 2, y - w / 2, w, h);
-  return new Collider(aabb, vx, vy, mass);
+  return new Collider(aabb, vx, vy);
 };
 
 Collider.prototype.x = function() {
@@ -63,7 +63,9 @@ Collider.collideAll_ = function(colliders, t) {
     ts.push({time: 1, object: null, direction: undefined});
   }
   for (var i = 0; i < len; ++i) {
+    var isStatic = colliders[i].static;
     for (var j = i + 1; j < len; ++j) {
+      if (isStatic && colliders[j].static) continue;
       var txp = geom.Range.collides(
           colliders[i].aabb.xRange(irange), colliders[i].vx * t,
           colliders[j].aabb.xRange(jrange), colliders[j].vx * t,
@@ -110,11 +112,15 @@ Collider.stepAll = function(colliders, t) {
                 Math.max(collider.aabb.p1.y, other.aabb.p1.y));
       var xMult = collider.aabb.p1.x < other.aabb.p1.x ? -1 : 1;
       var yMult = collider.aabb.p1.y < other.aabb.p1.y ? -1 : 1;
-      collider.aabb.addXY(xMult * xp / 2, yMult * yp / 2);
-      other.aabb.addXY(xMult * xp / -2, yMult * yp / -2);
+      if (!collider.static) {
+        collider.aabb.addXY(xMult * xp * 0.500001, yMult * yp * 0.500001);
+      }
+      if (!other.static) {
+        other.aabb.addXY(xMult * xp * -0.500001, yMult * yp * -0.500001);
+      }
     }
     var it = Math.min(1, Math.max(0, ts[i].time));
-    collider.aabb.addXY(it * t * collider.vx, it * t * collider.vy);
+    collider.aabb.addXY( t * collider.vx,  t * collider.vy);
     if (collideStruct.time <= 1 && collideStruct.direction) {
       collider.lastCollision = collideStruct;
     } else {

@@ -1,10 +1,9 @@
 function Renderer(attachTo, width, height) {
-  $(attachTo).width(width);
-  this.canvasElem_ = $('<canvas />')
-      .attr('width', width)
-      .attr('height', height)
-      .appendTo(attachTo)
-      .get(0);
+  attachTo.style.width = width + 'px';
+  this.canvasElem_ = document.createElement('canvas');
+  this.canvasElem_.setAttribute('width', width);
+  this.canvasElem_.setAttribute('height', height);
+  attachTo.appendChild(this.canvasElem_);
   this.context_ = this.canvasElem_.getContext('2d');
   this.w_ = this.canvasElem_.width;
   this.h_ = this.canvasElem_.height;
@@ -92,7 +91,7 @@ Renderer.prototype.tick = function() {
 
 Renderer.prototype.render = function(cb) {
   this.context_.clearRect(0, 0, this.w_, this.h_);
-  this.context_.fillStyle = 'rgb(50, 50, 40)';
+  this.context_.fillStyle = 'rgb(0, 0, 0)';
   this.context_.fillRect(0, 0, this.w_, this.h_);
 
   this.context_.save();

@@ -146,7 +146,8 @@ Keys = {
   LEFT: 37,
   UP: 38,
   RIGHT: 39,
-  DOWN: 40
+  DOWN: 40,
+  COMMA: 188,
 };
 
 // +----------------------------------------------------------------------------
@@ -198,6 +199,9 @@ geom.Range.prototype.overlaps = function(other) {
 // Returns [t1, t2] if they start colliding at t1 and end colliding at t2.
 geom.Range.collides = function(r1, v1, r2, v2, opt_range) {
   if (v1 == v2) {
+    if (r1.overlaps(r2)) {
+      return geom.Range.copyOrNew(-1, 2, opt_range);
+    }
     return null;
   }
   var t1 = (r2.hi - r1.lo) / (v1 - v2);
@@ -217,6 +221,23 @@ geom.AABB.prototype.addXY = function(x, y) {
   this.p2.x += x;
   this.p1.y += y;
   this.p2.y += y;
+};
+
+geom.AABB.prototype.setXY = function(x, y) {
+  var w = this.w();
+  var h = this.h();
+  this.p1.x = x;
+  this.p2.x = x + w;
+  this.p1.y = y;
+  this.p2.y = y + h;
+};
+
+geom.AABB.prototype.w = function() {
+  return this.p2.x - this.p1.x;
+};
+
+geom.AABB.prototype.h = function() {
+  return this.p2.y - this.p1.y;
 };
 
 geom.AABB.prototype.xRange = function(opt_range) {

@@ -20,18 +20,20 @@ KB.keyDown = function(chr) {
 };
 
 KB.tickHandleInput_ = function() {
-  $.each(KB.keyDown_, function(key, value) {
-      if (KB.keyDownCounts_[key]) {
-        KB.keyDownCounts_[key]++;
-      } else {
-        KB.keyDownCounts_[key] = 1;
-      }
-  });
-  $.each(KB.keyDownCounts_, function(key, value) {
-      if (!KB.keyDown_[key]) {
-        KB.keyDownCounts_[key] = 0;
-      }
-  });
+  for (var key in KB.keyDown_) {
+    var value = KB.keyDown_[key];
+    if (KB.keyDownCounts_[key]) {
+      KB.keyDownCounts_[key]++;
+    } else {
+      KB.keyDownCounts_[key] = 1;
+    }
+  }
+  for (var key in KB.keyDownCounts_) {
+    var value = KB.keyDownCounts_[key];
+    if (!KB.keyDown_[key]) {
+      KB.keyDownCounts_[key] = 0;
+    }
+  }
 };
 
 KB.onKeyDown = function(event) {
@@ -55,8 +57,8 @@ Pidgine = {};
 //   tick: a function of one argument that steps time forward by that amount.
 //   render: a function that renders something.
 Pidgine.run = function(gameStruct) {
-  $(gameStruct.elem).keydown(KB.onKeyDown);
-  $(gameStruct.elem).keyup(KB.onKeyUp);
+  gameStruct.elem.addEventListener('keydown', KB.onKeyDown);
+  gameStruct.elem.addEventListener('keyup', KB.onKeyUp);
   var lastFrame = new Date().getTime();
   (function renderLoop() {
     var now = new Date().getTime();

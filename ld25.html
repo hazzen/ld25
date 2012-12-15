@@ -2,11 +2,11 @@
   <head>
     <title>ld25 - you are the villain</title>
     <link rel='stylesheet' type='text/css' href='ld25.css'>
-    <script type='text/javascript' src='http://ajax.googleapis.com/ajax/libs/jquery/1.6.2/jquery.min.js'></script>
     <script type='text/javascript' src='base.js'></script>
     <script type='text/javascript' src='pidgine.js'></script>
     <script type='text/javascript' src='renderer.js'></script>
     <script type='text/javascript' src='entities.js'></script>
+    <script type='text/javascript' src='ld25.js'></script>
   </head>
   <body>
     <div>
@@ -20,20 +20,25 @@
       var gameElem = document.getElementById('game');
       var daRenderer = new Renderer(gameElem, 640, 480);
 
-      var stepping = false;
+      var stepping = true;
+
+      var shootGame = new ShootGame();
+      var level = new Level(Level.loadFromString(DEFAULT_LEVEL), DEFAULT_BLOCKS);
+      shootGame.setLevel(level);
 
       var gameStruct = {
         elem: gameElem,
         tick: function(t) {
-          if (KB.keyPressed('s')) {
+          if (KB.keyPressed('h')) {
             stepping = !stepping;
           }
           if (stepping || KB.keyPressed('n')) {
+            shootGame.tick(t);
           }
         },
         render: function() {
           daRenderer.render(function() {
-            var ctx = daRenderer.context();
+            shootGame.render(daRenderer);
           });
         }
       };
