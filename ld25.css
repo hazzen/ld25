@@ -12,7 +12,7 @@ body {
   background: #666;
 }
 
-button.action {
+button {
   width: 250px;
   border: 1px outset #666;
   font-family: monospace;
@@ -23,8 +23,17 @@ button.action {
   text-align: center;
 }
 
-button.action:active {
+button:active,
+button.selected {
   border-style: inset;
   background-image: -webkit-linear-gradient(top, #777, #988);
   text-align: center;
+}
+
+.left {
+  float: left;
+}
+
+.right {
+  float: left;
 }

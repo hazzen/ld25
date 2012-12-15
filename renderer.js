@@ -16,6 +16,10 @@ function Renderer(attachTo, width, height) {
   this.aabb_ = new geom.AABB(0, 0, this.w_, this.h_);
 }
 
+Renderer.prototype.elem = function() {
+  return this.canvasElem_;
+};
+
 Renderer.prototype.focusOn = function(x, y) {
   this.xt_ = x;
   this.yt_ = y;

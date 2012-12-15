@@ -9,22 +9,119 @@ var BuildGame = function() {
 
 BuildGame.prototype.makeHtml = function(owner) {
   owner = d3.select(owner);
+
+  var buyThings = [
+    {name: 'mook', clazz: Mook},
+  ];
+  var fortifyClick = function(o) {
+    var bs = owner.select('.right').selectAll('button.subAction')
+        .data(buyThings);
+    bs.exit().remove();
+    bs.enter().append('button')
+        .attr('class', 'subAction');
+    bs
+        .text(function(d) { return d.name + ' - $' + d.clazz.price; });
+
+    bs.on('click', function(d) {
+      ShootGame.GAME.levelEdit_.listen(RENDERER.elem(), d.clazz);
+    });
+  };
+
   var buttons = [
-    {name: 'fortify lair'},
+    {name: 'fortify lair', click: fortifyClick},
     {name: 'make demands'},
     {name: 'taunt the hero'},
     {name: 'end the day'},
   ];
 
-  var bs = owner.selectAll('button.action')
+  var bs = owner.select('.left').selectAll('button.action')
       .data(buttons)
+  bs.exit().remove();
   bs.enter().append('button')
-      .attr('class', 'action')
+      .attr('class', 'action');
+  bs
       .text(function(d) { return d.name; });
+  bs.on('click', function(d) {
+    bs.classed('selected', false);
+    if (d.click) {
+      d.click(d);
+      d3.select(this).classed('selected', true);
+    } else {
+      owner.select('.right').selectAll('button.subAction').remove();
+    }
+  });
+};
+
+var LevelEdit = function(game) {
+  this.game = game;
+};
+
+LevelEdit.prototype.handleEvent = function(e) {
+  if (!this.game.level_) return;
+  if (!this.piece) return;
+  this.bx = Math.floor(e.layerX / Block.SIZE);
+  this.by = Math.floor(e.layerY / Block.SIZE);
+  var w = this.piece.collider_.w();
+  var h = this.piece.collider_.h();
+  if (e.type == 'mousemove') {
+    this.piece.collider_.aabb.setXY(
+      this.bx * Block.SIZE + (Block.SIZE - w) / 2,
+      this.by * Block.SIZE + (Block.SIZE - h) / 2);
+  } else if (e.type == 'click') {
+    if (this.isLegal(this.bx, this.by)) {
+      this.game.addEnemy(this.piece);
+      this.piece = new this.clazz(-100, -100);
+    }
+  }
+};
+
+LevelEdit.prototype.isLegal = function(bx, by) {
+  var legal = false;
+  var onTopOf = this.game.level_.blockAt(bx * Block.SIZE, by * Block.SIZE);
+  if (onTopOf) {
+    var onTopBlock = this.game.level_.blockMap_[onTopOf.charCodeAt(0)];
+    if (!onTopBlock || !(onTopBlock.collideSides_ & Block.COLLIDE_SIDES)) {
+      legal = true;
+    }
+  }
+  return legal;
+};
+
+LevelEdit.prototype.listen = function(elem, clazz) {
+  elem.addEventListener('mousemove', this, false);
+  elem.addEventListener('click', this, false);
+  this.clazz = clazz;
+  this.piece = new clazz(-100, -100);
+};
+
+LevelEdit.prototype.unlisten = function(elem) {
+  elem.removeEventListener('mousemove', this, false);
+  elem.removeEventListener('click', this, false);
+};
+
+LevelEdit.prototype.render = function(renderer) {
+  var ctx = renderer.context();
+  if (this.piece) {
+    this.piece.render(renderer);
+    if (this.bx != null) {
+      var x = this.bx * Block.SIZE;
+      var y = this.by * Block.SIZE;
+      ctx.strokeStyle = this.isLegal(this.bx, this.by) ? '#0f0' : '#f00';
+      ctx.lineWidth = '3';
+      ctx.beginPath();
+      ctx.moveTo(x - 1.5, y - 1.5);
+      ctx.lineTo(x + Block.SIZE + 1.5, y - 1.5);
+      ctx.lineTo(x + Block.SIZE + 1.5, y + Block.SIZE + 1.5);
+      ctx.lineTo(x - 1.5, y + Block.SIZE + 1.5);
+      ctx.closePath();
+      ctx.stroke();
+    }
+  }
 };
 
 var ShootGame = function() {
   this.hero_ = new Hero(24, 50);
+  this.levelEdit_ = new LevelEdit(this);
 
   this.ents = [];
   this.particles = [];
@@ -85,14 +182,17 @@ ShootGame.prototype.setLevel = function(level) {
 
 ShootGame.prototype.nextPossess = function() {
   var foundI = this.possessI + 1;
+  if (foundI >= this.enemies.length) {
+    foundI = 0;
+  }
   while (foundI != this.possessI) {
-    if (foundI >= this.enemies.length) {
-      foundI = 0;
-    }
     if (this.enemies[foundI] && !this.enemies[foundI].dead) {
       break;
     }
     foundI++;
+    if (foundI >= this.enemies.length) {
+      foundI = 0;
+    }
   }
   if (foundI != this.possessI) {
     if (this.possessI >= 0 && this.possessI < this.enemies.length) {
@@ -160,6 +260,8 @@ ShootGame.prototype.render = function(renderer) {
   this.bullets.forEach(renderFn);
   this.particles.forEach(renderFn);
   this.hero_.render(renderer);
+
+  this.levelEdit_.render(renderer);
 };
 
 Controller = function() {
@@ -316,13 +418,15 @@ Hero.prototype.render = function(renderer) {
                this.collider_.w(), this.collider_.h());
 };
 
-var Mook = function(x, y, opts) {
+var Mook = function(x, y, opt_opts) {
+  var opts = opt_opts || {};
   opts.bulletIgnore = Ignore.MOOK | Ignore.BULLET;
   baseCtor(this, x, y, opts.w || 8, opts.h || 16, opts);
   this.collider_.ignore = Ignore.MOOK;
   this.possessed = false;
 };
 inherit(Mook, Actor);
+Mook.price = 5;
 
 Mook.prototype.possess = function(doPossess) {
   if (doPossess == this.possessed) {
@@ -618,11 +722,13 @@ Level.prototype.collideEnt = function(ent, t) {
 Level.prototype.blockAt = function(x, y) {
   var bx = Math.floor(x / Block.SIZE);
   var by = Math.floor(y / Block.SIZE);
+  if (by < 0 || by >= this.blocks_.length) return null;
+  if (bx < 0 || bx >= this.blocks_[0].length) return null;
   var blockI = this.blocks_[by][bx];
   if (blockI) {
     return String.fromCharCode(blockI);
   }
-  return '';
+  return ' ';
 };
 
 Level.prototype.render = function(renderer) {
