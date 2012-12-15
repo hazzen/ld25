@@ -108,6 +108,8 @@ LevelEdit.prototype.listen = function(elem, clazz) {
 LevelEdit.prototype.unlisten = function(elem) {
   elem.removeEventListener('mousemove', this, false);
   elem.removeEventListener('click', this, false);
+  this.piece = null;
+  this.clazz = null;
 };
 
 LevelEdit.prototype.render = function(renderer) {
@@ -153,6 +155,7 @@ ShootGame.addEnt = function(ents, ent) {
 };
 
 ShootGame.prototype.play = function() {
+  this.levelEdit_.unlisten(RENDERER.elem());
   this.hero_.dead = false;
   this.ticking = true;
 };
