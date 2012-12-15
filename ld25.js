@@ -120,7 +120,7 @@ LevelEdit.prototype.render = function(renderer) {
 };
 
 var ShootGame = function() {
-  this.hero_ = new Hero(24, 50);
+  this.hero_ = new Hero(Block.SIZE + 4, Block.SIZE + 4);
   this.levelEdit_ = new LevelEdit(this);
 
   this.ents = [];
@@ -519,6 +519,19 @@ var DEFAULT_BLOCKS = {
        },
        Block.COLLIDE_ALL),
 
+  '#': new Block(function(renderer, x, y) {
+         var ctx = renderer.context();
+         ctx.fillStyle = 'rgba(126, 106, 95, 0.5)';
+         ctx.fillRect(x, y, Block.SIZE, Block.SIZE);
+         ctx.fillStyle = 'rgba(126, 89, 70, 0.5)';
+         ctx.fillRect(x + 2, y + 2, Block.SIZE - 4, Block.SIZE - 4);
+         ctx.fillStyle = 'rgba(70, 56, 53, 0.5)';
+         for (var i = 1; i < 3; ++i) {
+           ctx.fillRect(x + i * Block.SIZE / 3 - 1, y + 2, 2, Block.SIZE - 4);
+         }
+       },
+       Block.COLLIDE_NONE),
+
   '2': new Block(function(renderer, x, y) {
          var ctx = renderer.context();
          ctx.fillStyle = 'rgb(126, 106, 95)';
@@ -577,6 +590,105 @@ var DEFAULT_BLOCKS = {
 for (var b in DEFAULT_BLOCKS) {
   DEFAULT_BLOCKS[b.charCodeAt(0)] = DEFAULT_BLOCKS[b];
 }
+
+var RIGHT_BLOCKS = [
+  [
+    ' ----   ----   ----',
+    '                   ',
+    '                   ',
+    '>                  ',
+    '>^                 ',
+    '>^2222      ^^22222',
+    '1111111111111111111',
+  ],
+  [
+    '>                21',
+    '--- ^--- ^---   <21',
+    '               <221',
+    '    221111111111111',
+    '    22             ',
+    '>   ##       ^222  ',
+    '1111111111111111111',
+  ],
+];
+
+var RIGHT_DOWN_BLOCKS = [
+  [
+    '  ---   ---   ---  ',
+    '                   ',
+    '                   ',
+    '                   ',
+    '                   ',
+    '                   ',
+    '11111111111111     ',
+  ],
+  [
+    '  ---   ---   ---  ',
+    '   2               ',
+    '   22 2            ',
+    '   22 2            ',
+    '^^^####            ',
+    '^^22222            ',
+    '11111111111111     ',
+  ],
+];
+
+var LEFT_BLOCKS = [
+  [
+    ' ----    ----   -- ',
+    '                   ',
+    '                   ',
+    '                   ',
+    '       22^^^    ^^ ',
+    '      2222^^  22^^<',
+    '1111111111111111111',
+  ],
+  [
+    ' ----    ----   -- ',
+    '                   ',
+    '              <<   ',
+    '              2<   ',
+    '       22^^^  2^   ',
+    '      2222^^  22^^<',
+    '1111111111111111111',
+  ],
+];
+
+var LEFT_DOWN_BLOCKS = [
+  [
+    '  ---   ---   ---  ',
+    '                   ',
+    '                   ',
+    '                   ',
+    '                   ',
+    '                   ',
+    '      1111111111111',
+  ],
+];
+
+Level.randomOfHeight = function(floors) {
+  var dir = 1;
+  var roof = '1111111111111111111111111111111111111111';
+  var lines = [roof];
+  for (; floors > 0; --floors) {
+    var norm = dir > 0 ? RIGHT_BLOCKS : LEFT_BLOCKS;
+    var down = dir > 0 ? RIGHT_DOWN_BLOCKS : LEFT_DOWN_BLOCKS;
+    var leftHalf = pick(norm);
+    var rightHalf = pick(floors == 1 ? norm : down);
+    if (dir < 0) {
+      var t = leftHalf;
+      leftHalf = rightHalf;
+      rightHalf = t;
+    }
+    for (var i = 0; i < leftHalf.length; ++i) {
+      var line = '1' + leftHalf[i] + rightHalf[i] + '1';
+      lines.push(line);
+    }
+    dir *= -1;
+  }
+  lines.push(roof);
+  return lines.join('\n') + '\n';
+};
 
 var LEVEL_1 = (
   '1111111111111111111111111111111111111111\n' +
