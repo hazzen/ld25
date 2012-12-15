@@ -1,3 +1,8 @@
+var Ignore = {
+  MOOK: 1 << 0,
+  BULLET: 1 << 1,
+};
+
 var BuildGame = function() {
 };
 
@@ -148,12 +153,13 @@ AiController.prototype.tick = function(t) {
 AiController.prototype.left = function() { return this.dir < 0; }
 AiController.prototype.right = function() { return this.dir > 0; }
 AiController.prototype.jump = function() { return this.doJump; }
+AiController.prototype.shoot = function() { return true; }
 
 var Bullet = function(x, y, vx, opts) {
   var w = opts.w || 4;
   var h = opts.h || 4;
   this.collider_ = Collider.fromCenter(x, y, w, h, vx, 0);
-  this.collider_.ignore = 1 << 0;
+  this.collider_.ignore = Ignore.BULLET;
 };
 
 Bullet.prototype.handleLevelCollide = function(collide) {
@@ -219,7 +225,7 @@ Actor.prototype.tick = function(t) {
   if (this.controller.shoot() && this.nextShot < 0) {
     this.nextShot = this.opts.shotDelay;
     ShootGame.GAME.addBullet(new Bullet(
-        this.collider_.cx() + this.facing * this.collider_.w() / 2,
+        this.collider_.cx(),// + this.facing * this.collider_.w() / 2,
         this.collider_.cy(),
         this.facing * 160 * 1.5,
         {}));
@@ -245,10 +251,13 @@ Actor.prototype.handleLevelCollide = function(collide) {
 var Hero = function(x, y) {
   baseCtor(this, x, y, 8, 16);
 
+  this.controller = new AiController(this);
+  /*
   this.controller.left = function() { return KB.keyDown(Keys.LEFT); };
   this.controller.right = function() { return KB.keyDown(Keys.RIGHT); };
   this.controller.jump = function() { return KB.keyDown('z'); };
   this.controller.shoot = function() { return KB.keyDown('x'); };
+  */
 };
 inherit(Hero, Actor);
 
@@ -261,8 +270,8 @@ Hero.prototype.render = function(renderer) {
 
 var Mook = function(x, y, opts) {
   baseCtor(this, x, y, opts.w || 8, opts.h || 16, opts);
-  this.collider_.ignore = 1 << 1;
-  this.controller = new AiController(this);
+  this.collider_.ignore = Ignore.MOOK;
+  //this.controller = new AiController(this);
 };
 inherit(Mook, Actor);
 
