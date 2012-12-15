@@ -1,3 +1,30 @@
+var Villain = function(ui) {
+  this.funds = 50;
+  this.evilness = 0;
+  this.ui = ui;
+  this.updateUi();
+};
+
+Villain.prototype.updateUi = function() {
+  var disps = this.ui.selectAll('div.disp').data([
+    ['funds', this.funds],
+    ['evilness', this.evilness],
+  ]);
+  var txt = function(d) {
+    return d[0] + ': ' + d[1];
+  };
+  disps.enter().append('div')
+      .attr('class', 'disp')
+      .text(txt);
+  disps
+      .text(txt);
+};
+
+Villain.prototype.spend = function(amt) {
+  this.funds -= amt;
+  this.updateUi();
+};
+
 var Ignore = {
   MOOK: 1 << 0,
   HERO: 1 << 1,
@@ -15,7 +42,7 @@ BuildGame.prototype.makeHtml = function() {
     {name: 'mook', clazz: Mook},
   ];
   var fortifyClick = function(o) {
-    var bs = owner.select('.right').selectAll('button.subAction')
+    var bs = owner.select('.sub').selectAll('button.subAction')
         .data(buyThings);
     bs.exit().remove();
     bs.enter().append('button')
@@ -30,10 +57,6 @@ BuildGame.prototype.makeHtml = function() {
 
   var endDayClick = function() {
     ShootGame.GAME.play();
-    /*
-    ShootGame.GAME.setLevel(
-        Level.loadFromString(Level.randomOfHeight(2), DEFAULT_BLOCKS));
-    */
   };
 
   var buttons = [
@@ -58,7 +81,7 @@ BuildGame.prototype.makeHtml = function() {
         d3.select(this).classed('selected', true);
       }
     } else {
-      owner.select('.right').selectAll('button.subAction').remove();
+      owner.select('.sub').selectAll('button.subAction').remove();
     }
   });
 };
@@ -79,14 +102,21 @@ LevelEdit.prototype.handleEvent = function(e) {
       this.bx * Block.SIZE + (Block.SIZE - w) / 2,
       this.by * Block.SIZE + (Block.SIZE - h) / 2);
   } else if (e.type == 'click') {
-    if (this.isLegal(this.bx, this.by)) {
-      this.game.addEnemy(this.piece);
-      this.piece = new this.clazz(-100, -100);
+    if (this.isLegal(this.bx, this.by, this.piece)) {
+      if (this.game.villain_.funds >= this.clazz.price) {
+        this.game.villain_.spend(this.clazz.price);
+        this.game.addParticle(new FloatText(
+            '-$' + this.clazz.price, '#34ab1c',
+            this.piece.collider_.cx(), this.piece.collider_.y(),
+            5, -10));
+        this.game.addEnemy(this.piece);
+        this.piece = new this.clazz(-100, -100);
+      }
     }
   }
 };
 
-LevelEdit.prototype.isLegal = function(bx, by) {
+LevelEdit.prototype.isLegal = function(bx, by, piece) {
   var legal = false;
   var onTopOf = this.game.level_.blockAt(bx * Block.SIZE, by * Block.SIZE);
   if (onTopOf) {
@@ -95,6 +125,14 @@ LevelEdit.prototype.isLegal = function(bx, by) {
       legal = true;
     }
   }
+  /*
+  if (legal) {
+    var colliders = [this.piece.collider_, this.game.hero_.collider_].concat(
+        this.game.ents.map(function(f) { return f.collider_; }));
+    Collider.stepAll(colliders, 1);
+    return !(this.piece.collider_.lastCollision);
+  }
+  */
   return legal;
 };
 
@@ -119,7 +157,7 @@ LevelEdit.prototype.render = function(renderer) {
     if (this.bx != null) {
       var x = this.bx * Block.SIZE;
       var y = this.by * Block.SIZE;
-      ctx.strokeStyle = this.isLegal(this.bx, this.by) ? '#0f0' : '#f00';
+      ctx.strokeStyle = this.isLegal(this.bx, this.by, this.piece) ? '#0f0' : '#f00';
       ctx.lineWidth = '3';
       ctx.beginPath();
       ctx.moveTo(x - 1.5, y - 1.5);
@@ -134,6 +172,7 @@ LevelEdit.prototype.render = function(renderer) {
 
 var ShootGame = function() {
   this.ticking = false;
+  this.villain_ = new Villain(d3.select('#build .funds'));
   this.hero_ = new Hero(Block.SIZE + 4, Block.SIZE + 4);
   this.levelEdit_ = new LevelEdit(this);
   this.setLevel(null);
@@ -226,6 +265,10 @@ ShootGame.prototype.nextPossess = function() {
 ShootGame.prototype.tick = function(t) {
   this.t += t;
   this.t %= 1000;
+
+  var tickFn = ShootGame.tickEntFn(t);
+  this.particles.forEach(tickFn);
+
   if (!this.ticking) return;
 
   if (KB.keyPressed(Keys.TAB)) {
@@ -264,10 +307,8 @@ ShootGame.prototype.tick = function(t) {
     }
   }, this));
 
-  var tickFn = ShootGame.tickEntFn(t);
   this.ents.forEach(tickFn);
   this.bullets.forEach(tickFn);
-  this.particles.forEach(tickFn);
 
   var collides = this.bullets.concat(this.enemies)
       .filter(function(f) { return !f.dead; })
@@ -582,6 +623,30 @@ Explosion.prototype.render = function(renderer) {
   ctx.fill();
   ctx.globalAlpha = 1;
 };
+
+var FloatText = function(text, color, x, y, opt_dx, opt_dy) {
+  baseCtor(this, 1);
+  this.x = x;
+  this.y = y;
+  this.text = text;
+  this.color = color;
+  this.dx = opt_dx || 0;
+  this.dy = opt_dy || 0;
+};
+inherit(FloatText, Particle);
+
+FloatText.prototype.render = function(renderer) {
+  var ctx = renderer.context();
+  ctx.save();
+  ctx.font = '12px monospace';
+  ctx.textAlign = 'center';
+  ctx.testBaseline = 'middle';
+  ctx.fillStyle = this.color;
+  ctx.fillText(this.text,
+      this.x + this.dx * (1 - this.alpha()),
+      this.y + this.dy * (1 - this.alpha()));
+  ctx.restore();
+}
 
 function Block(render, collideSides) {
   this.render = render;
