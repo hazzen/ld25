@@ -129,12 +129,9 @@ LevelEdit.prototype.render = function(renderer) {
 var ShootGame = function() {
   this.hero_ = new Hero(Block.SIZE + 4, Block.SIZE + 4);
   this.levelEdit_ = new LevelEdit(this);
+  this.setLevel(null);
+  this.t = 0;
 
-  this.ents = [];
-  this.particles = [];
-  this.enemies = [];
-  this.bullets = [];
-  this.possessI = -1;
   ShootGame.GAME = this;
 };
 ShootGame.GAME = null;
@@ -184,8 +181,15 @@ ShootGame.tickEntFn = function(t) {
 };
 
 ShootGame.prototype.setLevel = function(level) {
+  this.hero_ = new Hero(Block.SIZE + 4, Block.SIZE + 4);
   this.hero_.collider_.aabb.setXY(Block.SIZE, Block.SIZE);
   this.level_ = level;
+
+  this.ents = [];
+  this.particles = [];
+  this.enemies = [];
+  this.bullets = [];
+  this.possessI = -1;
 };
 
 ShootGame.prototype.nextPossess = function() {
@@ -211,7 +215,11 @@ ShootGame.prototype.nextPossess = function() {
   }
 };
 ShootGame.prototype.tick = function(t) {
+  this.t += t;
+  this.t %= 1000;
   if (KB.keyPressed(Keys.TAB)) {
+    this.nextPossess();
+  } else if (!this.enemies[this.possessI] || this.enemies[this.possessI].dead) {
     this.nextPossess();
   }
 
@@ -262,6 +270,7 @@ ShootGame.prototype.tick = function(t) {
 };
 
 ShootGame.prototype.render = function(renderer) {
+  var ctx = renderer.context();
   this.level_.render(renderer);
   var renderFn = ShootGame.renderEntFn(renderer);
   this.ents.forEach(renderFn);
@@ -270,6 +279,20 @@ ShootGame.prototype.render = function(renderer) {
   this.hero_.render(renderer);
 
   this.levelEdit_.render(renderer);
+
+  var possessed = this.enemies[this.possessI];
+  if (possessed && !possessed.dead) {
+    var h = this.t % 1;
+    h = h * 4 - 2;
+    h = -h * h + 1;
+    ctx.fillStyle = '#f00';
+    ctx.beginPath();
+    ctx.moveTo(possessed.collider_.cx() - 5, possessed.collider_.y() - 5 + h);
+    ctx.lineTo(possessed.collider_.cx() + 5, possessed.collider_.y() - 5 + h);
+    ctx.lineTo(possessed.collider_.cx(), possessed.collider_.y() + h);
+    ctx.closePath();
+    ctx.fill();
+  }
 };
 
 Controller = function() {
