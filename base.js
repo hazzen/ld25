@@ -106,6 +106,11 @@ function baseCtor(me) {
       me, Array.prototype.slice.call(arguments, 1));
 }
 
+function base(me, method) {
+  me.parent_[method].apply(
+      me, Array.prototype.slice.call(arguments, 2));
+}
+
 
 // from: http://paulirish.com/2011/requestanimationrender-for-smart-animating/
 var requestAnimFrame = (function(){
@@ -255,6 +260,14 @@ geom.AABB.prototype.setXY = function(x, y) {
   this.p2.x = x + w;
   this.p1.y = y;
   this.p2.y = y + h;
+};
+
+geom.AABB.prototype.x = function() {
+  return this.p1.x;
+};
+
+geom.AABB.prototype.y = function() {
+  return this.p1.y;
 };
 
 geom.AABB.prototype.w = function() {

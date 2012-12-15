@@ -24,9 +24,10 @@ BuildGame.prototype.makeHtml = function(owner) {
 };
 
 var ShootGame = function() {
-  this.hero_ = new Hero(50, 50);
+  this.hero_ = new Hero(24, 50);
 
   this.ents = [];
+  this.particles = [];
   this.enemies = [];
   this.bullets = [];
   this.possessI = -1;
@@ -56,6 +57,10 @@ ShootGame.prototype.addEnt = function(ent) {
 ShootGame.prototype.addEnemy = function(ent) {
   ShootGame.addEnt(this.ents, ent);
   ShootGame.addEnt(this.enemies, ent);
+};
+
+ShootGame.prototype.addParticle = function(ent) {
+  ShootGame.addEnt(this.particles, ent);
 };
 
 ShootGame.renderEntFn = function(renderer) {
@@ -107,32 +112,43 @@ ShootGame.prototype.tick = function(t) {
   var collide = this.level_.collideEnt(this.hero_, t);
   this.hero_.handleLevelCollide(collide);
   this.ents.forEach(bind(function(ent) {
-    var collide = this.level_.collideEnt(ent, t);
-    ent.handleLevelCollide(collide);
+    if (!ent.dead) {
+      var collide = this.level_.collideEnt(ent, t);
+      ent.handleLevelCollide(collide);
+    }
   }, this));
   this.bullets.forEach(bind(function(bullet) {
-    var collide = this.level_.collideEnt(bullet, t);
-    bullet.handleLevelCollide(collide);
+    if (!bullet.dead) {
+      var collide = this.level_.collideEnt(bullet, t);
+      bullet.handleLevelCollide(collide);
+    }
   }, this));
 
   var tickFn = ShootGame.tickEntFn(t);
   this.ents.forEach(tickFn);
   this.bullets.forEach(tickFn);
+  this.particles.forEach(tickFn);
 
   var collides = this.bullets.concat(this.enemies)
       .filter(function(f) { return !f.dead; })
       .map(function(f) { return f.collider_; });
   Collider.stepAll(collides, t);
   this.bullets.forEach(function(bullet) {
-    if (bullet.collider_.lastCollision) {
-      bullet.dead = true;
+    if (!bullet.dead) {
+      if (bullet.collider_.lastCollision) {
+        bullet.dead = true;
+      }
     }
   });
   this.enemies.forEach(function(enemy) {
-    if (enemy.collider_.lastCollision) {
-      enemy.dead = true;
+    if (!enemy.dead) {
+      if (enemy.collider_.lastCollision) {
+        enemy.dead = true;
+        this.addParticle(new DeathFall(enemy, '#f56f58',
+            sgn(enemy.collider_.lastCollision.object.vx)));
+      }
     }
-  });
+  }, this);
 
   //Collider.stepAll([this.hero_.collider_], t);
 };
@@ -142,6 +158,7 @@ ShootGame.prototype.render = function(renderer) {
   var renderFn = ShootGame.renderEntFn(renderer);
   this.ents.forEach(renderFn);
   this.bullets.forEach(renderFn);
+  this.particles.forEach(renderFn);
   this.hero_.render(renderer);
 };
 
@@ -157,7 +174,7 @@ Controller.prototype.shoot = function() { return false; }
 var AiController = function(actor) {
   baseCtor(this);
   this.actor = actor;
-  this.dir = 1;
+  this.dir = 0;
   this.doJump = false;
 };
 inherit(AiController, Controller);
@@ -329,6 +346,49 @@ Mook.prototype.render = function(renderer) {
   }
   ctx.fillRect(this.collider_.x(), this.collider_.y(),
                this.collider_.w(), this.collider_.h());
+};
+
+
+var Particle = function(life) {
+  this.life = life;
+  this.startLife = life;
+};
+
+Particle.prototype.alpha = function() {
+  return this.life / this.startLife;
+};
+
+Particle.prototype.tick = function(t) {
+  this.life -= t;
+  if (this.life < 0) {
+    this.dead = true;
+  }
+};
+
+var DeathFall = function(actor, color, dir) {
+  baseCtor(this, 1);
+  this.aabb = actor.collider_.aabb;
+  this.color = color;
+  this.rot = Math.PI * dir * randFlt(0.1, 0.2);
+  this.vx = dir * 10;
+};
+inherit(DeathFall, Particle);
+
+DeathFall.prototype.tick = function(t) {
+  base(this, 'tick', t);
+  this.aabb.addXY(this.vx * t, 0);
+};
+
+DeathFall.prototype.render = function(renderer) {
+  var ctx = renderer.context();
+  ctx.save();
+  var w = this.aabb.w();
+  ctx.globalAlpha = this.alpha();
+  ctx.translate(this.aabb.x() + w / 2, this.aabb.y());
+  ctx.rotate(this.rot);
+  ctx.fillStyle = this.color;
+  ctx.fillRect(-w / 2, 0, w, this.aabb.h());
+  ctx.restore();
 };
 
 function Block(render, collideSides) {
