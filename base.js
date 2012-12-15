@@ -75,13 +75,37 @@ function min(arr, opt_cmp) {
   return b;
 }
 
-function bind(obj, method) {
+function bind(method, obj) {
   var args = Array.prototype.slice.call(arguments, 2);
   return function() {
     var foundArgs = Array.prototype.slice.call(arguments);
     return method.apply(obj, args.concat(foundArgs));
   };
 };
+
+function partial(method) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return function() {
+    var foundArgs = Array.prototype.slice.call(arguments);
+    return method.apply(this, args.concat(foundArgs));
+  };
+}
+
+function inherit(cls, parentCls) {
+  function tmp() {};
+  tmp.prototype = parentCls.prototype;
+  cls.parent_ = parentCls.prototype;
+  cls.prototype = new tmp();
+  cls.prototype.constructor = cls;
+  cls.prototype.parent_ = parentCls.prototype;
+}
+
+function baseCtor(me) {
+  var caller = arguments.callee.caller;
+  return caller.parent_.constructor.apply(
+      me, Array.prototype.slice.call(arguments, 1));
+}
+
 
 // from: http://paulirish.com/2011/requestanimationrender-for-smart-animating/
 var requestAnimFrame = (function(){

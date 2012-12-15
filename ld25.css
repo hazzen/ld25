@@ -2,6 +2,29 @@
   margin: 0 auto;
 }
 
+#game,
+#shoot,
+#build {
+  width: 640;
+}
+
 body {
   background: #666;
+}
+
+button.action {
+  width: 250px;
+  border: 1px outset #666;
+  font-family: monospace;
+  display: block;
+  background-image: -webkit-linear-gradient(top, #988, #777);
+  background-image: -moz-linear-gradient(top, #988, #777);
+  background-image: -o-linear-gradient(top, #988, #777);
+  text-align: center;
+}
+
+button.action:active {
+  border-style: inset;
+  background-image: -webkit-linear-gradient(top, #777, #988);
+  text-align: center;
 }

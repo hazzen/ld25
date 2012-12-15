@@ -104,6 +104,7 @@ Collider.stepAll = function(colliders, t) {
     var collideStruct = ts[i];
     var other = collideStruct.object;
     // Overlapping - push out.
+    /*
     if (collideStruct.time < 0) {
       // Could max the xp/yp so things don't jump as much.
       var xp = (Math.min(collider.aabb.p2.x, other.aabb.p2.x) -
@@ -119,8 +120,9 @@ Collider.stepAll = function(colliders, t) {
         other.aabb.addXY(xMult * xp * -0.500001, yMult * yp * -0.500001);
       }
     }
+    */
     var it = Math.min(1, Math.max(0, ts[i].time));
-    collider.aabb.addXY( t * collider.vx,  t * collider.vy);
+    //collider.aabb.addXY( t * collider.vx,  t * collider.vy);
     if (collideStruct.time <= 1 && collideStruct.direction) {
       collider.lastCollision = collideStruct;
     } else {

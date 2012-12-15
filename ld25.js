@@ -1,5 +1,70 @@
+var BuildGame = function() {
+};
+
+BuildGame.prototype.makeHtml = function(owner) {
+  owner = d3.select(owner);
+  var buttons = [
+    {name: 'fortify lair'},
+    {name: 'make demands'},
+    {name: 'taunt the hero'},
+    {name: 'end the day'},
+  ];
+
+  var bs = owner.selectAll('button.action')
+      .data(buttons)
+  bs.enter().append('button')
+      .attr('class', 'action')
+      .text(function(d) { return d.name; });
+};
+
 var ShootGame = function() {
   this.hero_ = new Hero(50, 50);
+
+  this.ents = [];
+  this.enemies = [];
+  this.bullets = [];
+  ShootGame.GAME = this;
+};
+ShootGame.GAME = null;
+
+ShootGame.addEnt = function(ents, ent) {
+  for (var i = 0; i < ents.length; ++i) {
+    var curEnt = ents[i];
+    if (!curEnt || curEnt.dead) {
+      ents[i] = ent;
+      return;
+    }
+  }
+  ents.push(ent);
+};
+
+ShootGame.prototype.addBullet = function(bullet) {
+  ShootGame.addEnt(this.bullets, bullet);
+};
+
+ShootGame.prototype.addEnt = function(ent) {
+  ShootGame.addEnt(this.ents, ent);
+};
+
+ShootGame.prototype.addEnemy = function(ent) {
+  ShootGame.addEnt(this.ents, ent);
+  ShootGame.addEnt(this.enemies, ent);
+};
+
+ShootGame.renderEntFn = function(renderer) {
+  return function(ent) {
+    if (ent && !ent.dead && ent.render) {
+      ent.render(renderer);
+    }
+  };
+};
+
+ShootGame.tickEntFn = function(t) {
+  return function(ent) {
+    if (ent && !ent.dead && ent.tick) {
+      ent.tick(t);
+    }
+  };
 };
 
 ShootGame.prototype.setLevel = function(level) {
@@ -10,45 +75,82 @@ ShootGame.prototype.tick = function(t) {
   this.hero_.tick(t);
 
   var collide = this.level_.collideEnt(this.hero_, t);
-  this.hero_.asCollider().aabb.setXY(collide.x, collide.y);
-  if (collide.yl || collide.yh) {
-    if (this.hero_.asCollider().vy >= 0) {
-      this.hero_.falling = 0;
-      this.hero_.jumping = 0;
-    }
-    this.hero_.asCollider().vy = 0;
-  } else {
-    this.hero_.falling = 1;
-  }
-  if (collide.xl || Collider.xh) {
-    this.hero_.asCollider().vx = 0;
-  }
+  this.hero_.handleLevelCollide(collide);
+  this.ents.forEach(bind(function(ent) {
+    var collide = this.level_.collideEnt(ent, t);
+    ent.handleLevelCollide(collide);
+  }, this));
+  this.bullets.forEach(bind(function(bullet) {
+    var collide = this.level_.collideEnt(bullet, t);
+    bullet.handleLevelCollide(collide);
+  }, this));
+
+  var tickFn = ShootGame.tickEntFn(t);
+  this.ents.forEach(tickFn);
+  this.bullets.forEach(tickFn);
 
   //Collider.stepAll([this.hero_.collider_], t);
 };
 
 ShootGame.prototype.render = function(renderer) {
   this.level_.render(renderer);
+  var renderFn = ShootGame.renderEntFn(renderer);
+  this.ents.forEach(renderFn);
+  this.bullets.forEach(renderFn);
   this.hero_.render(renderer);
 };
 
-var Hero = function(x, y) {
-  this.collider_ = Collider.fromCenter(x, y, 8, 16, 0, 0);
+Controller = function() {
+};
+
+Controller.prototype.tick = function(t) {};
+Controller.prototype.left = function() { return false; }
+Controller.prototype.right = function() { return false; }
+Controller.prototype.jump = function() { return false; }
+Controller.prototype.shoot = function() { return false; }
+
+var Bullet = function(x, y, vx, opts) {
+  var w = opts.w || 4;
+  var h = opts.h || 4;
+  this.collider_ = Collider.fromCenter(x, y, w, h, vx, 0);
+};
+
+Bullet.prototype.handleLevelCollide = function(collide) {
+  this.collider_.aabb.setXY(collide.x, collide.y);
+  if (collide.yl || collide.yh || collide.xl || collide.xh) {
+    this.dead = true;
+  }
+};
+
+Bullet.prototype.render = function(renderer) {
+  var ctx = renderer.context();
+  ctx.fillStyle = '#666';
+  ctx.fillRect(this.collider_.x(), this.collider_.y(),
+               this.collider_.w(), this.collider_.h());
+};
+
+var Actor = function(x, y, w, h, opt_opts) {
+  this.collider_ = Collider.fromCenter(x, y, w, h, 0, 0);
   this.jumping = 0;
   this.falling = 1;
+  this.facing = 1;
+  this.controller = new Controller();
+  this.nextShot = 0;
+
+  this.opts = opt_opts || {};
+  this.opts.shotDelay = this.opts.shotDelay || 0.2;
 };
 
-Hero.prototype.asCollider = function() {
-  return this.collider_;
-};
-
-Hero.prototype.tick = function(t) {
+Actor.prototype.tick = function(t) {
+  this.nextShot -= t;
   var down = false;
-  if (KB.keyDown('a')) {
+  if (this.controller.left()) {
+    this.facing = -1;
     this.collider_.vx -= t * 160;
     down = true;
   }
-  if (KB.keyDown('d')) {
+  if (this.controller.right()) {
+    this.facing = 1;
     this.collider_.vx += t * 160;
     down = true;
   }
@@ -61,7 +163,7 @@ Hero.prototype.tick = function(t) {
     this.collider_.vx = 0;
   }
 
-  if (KB.keyPressed(Keys.COMMA)) {
+  if (this.controller.jump()) {
     if (!this.jumping) {
       this.jumping = true;
       this.collider_.vy = -130;
@@ -70,7 +172,42 @@ Hero.prototype.tick = function(t) {
   if (this.falling) {
     this.collider_.vy += 160 * t;
   }
+
+  if (this.controller.shoot() && this.nextShot < 0) {
+    this.nextShot = this.opts.shotDelay;
+    ShootGame.GAME.addBullet(new Bullet(
+        this.collider_.cx() + this.facing * this.collider_.w() / 2,
+        this.collider_.cy(),
+        this.facing * 160 * 1.5,
+        {}));
+  }
 };
+
+Actor.prototype.handleLevelCollide = function(collide) {
+  this.collider_.aabb.setXY(collide.x, collide.y);
+  if (collide.yl || collide.yh) {
+    if (this.collider_.vy >= 0) {
+      this.falling = 0;
+      this.jumping = 0;
+    }
+    this.collider_.vy = 0;
+  } else {
+    this.falling = 1;
+  }
+  if (collide.xl || collide.xh) {
+    this.collider_.vx = 0;
+  }
+};
+
+var Hero = function(x, y) {
+  baseCtor(this, x, y, 8, 16);
+
+  this.controller.left = function() { return KB.keyDown(Keys.LEFT); };
+  this.controller.right = function() { return KB.keyDown(Keys.RIGHT); };
+  this.controller.jump = function() { return KB.keyDown('z'); };
+  this.controller.shoot = function() { return KB.keyDown('x'); };
+};
+inherit(Hero, Actor);
 
 Hero.prototype.render = function(renderer) {
   var ctx = renderer.context();
@@ -79,6 +216,17 @@ Hero.prototype.render = function(renderer) {
                this.collider_.w(), this.collider_.h());
 };
 
+var Mook = function(x, y, opts) {
+  baseCtor(this, x, y, opts.w || 8, opts.h || 16);
+};
+inherit(Mook, Actor);
+
+Mook.prototype.render = function(renderer) {
+  var ctx = renderer.context();
+  ctx.fillStyle = '#f56f58';
+  ctx.fillRect(this.collider_.x(), this.collider_.y(),
+               this.collider_.w(), this.collider_.h());
+};
 
 
 function Block(render, collideSides) {
@@ -125,14 +273,21 @@ for (var b in DEFAULT_BLOCKS) {
 }
 
 var DEFAULT_LEVEL = (
-  '111111111111111111111\n' +
-  '1                   1\n' +
-  '1  ---     -----    1\n' +
-  '1                   1\n' +
-  '1      ---          1\n' +
-  '1                   1\n' +
-  '1  2222        222221\n' +
-  '111111111111111111111\n');
+  '1111111111111111111111111111111111111111\n' +
+  '1                                      1\n' +
+  '1  ---     -----                       1\n' +
+  '1                                      1\n' +
+  '1      ---                             1\n' +
+  '1                                      1\n' +
+  '1  2222        22222                   1\n' +
+  '11111111111111111111111111111111       1\n' +
+  '1                                      1\n' +
+  '1  ---     -----                       1\n' +
+  '1                                      1\n' +
+  '1      ---                             1\n' +
+  '1                                      1\n' +
+  '1  2222        22222                   1\n' +
+  '1111111111111111111111111111111111111111\n');
 
 function Level(blocks, blockMap) {
   this.blocks_ = blocks;
@@ -194,7 +349,7 @@ Level.prototype.blockInLine_ = function(x, y, vertical, dir) {
 };
 
 Level.prototype.collideEnt_ = function(ent, t, vertical) {
-  var collider = ent.asCollider();
+  var collider = ent.collider_;
   var v = t * (vertical ? collider.vy : collider.vx);
   var p = vertical ? collider.y() : collider.x();
   if (v == 0) {
@@ -242,7 +397,7 @@ Level.prototype.collideEnt_ = function(ent, t, vertical) {
 };
 
 Level.prototype.collideEnt = function(ent, t) {
-  var c = ent.asCollider();
+  var c = ent.collider_;
   var ox = c.x();
   var oy = c.y();
   var sx = this.collideEnt_(ent, t, false);

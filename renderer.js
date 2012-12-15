@@ -95,8 +95,8 @@ Renderer.prototype.render = function(cb) {
   this.context_.fillRect(0, 0, this.w_, this.h_);
 
   this.context_.save();
-  this.context_.translate(-Math.round(this.xOff_) + 0.5,
-                          -Math.round(this.yOff_) + 0.5);
+  this.context_.translate(-Math.round(this.xOff_),
+                          -Math.round(this.yOff_));
 
   cb(this);
 

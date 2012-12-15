@@ -2,6 +2,7 @@
   <head>
     <title>ld25 - you are the villain</title>
     <link rel='stylesheet' type='text/css' href='ld25.css'>
+    <script type='text/javascript' src='d3.v2.min.js'></script>
     <script type='text/javascript' src='base.js'></script>
     <script type='text/javascript' src='pidgine.js'></script>
     <script type='text/javascript' src='renderer.js'></script>
@@ -10,7 +11,11 @@
   </head>
   <body>
     <div>
-    <div id="game" tabindex="0">
+    <div id="game">
+      <div id="shoot" tabindex="0">
+      </div>
+      <div id="build">
+      </div>
     </div>
 
     <script type="text/javascript">
@@ -18,13 +23,21 @@
       FRAME_RATE = 60;
 
       var gameElem = document.getElementById('game');
-      var daRenderer = new Renderer(gameElem, 640, 480);
+
+      var shootElem = document.getElementById('shoot');
+      var daRenderer = new Renderer(shootElem, 640, 480);
 
       var stepping = true;
 
       var shootGame = new ShootGame();
       var level = new Level(Level.loadFromString(DEFAULT_LEVEL), DEFAULT_BLOCKS);
       shootGame.setLevel(level);
+
+      var buildGame = new BuildGame();
+      buildGame.makeHtml(document.getElementById('build'));
+
+      var mook = new Mook(150, 50, {});
+      shootGame.addEnemy(mook);
 
       var gameStruct = {
         elem: gameElem,
