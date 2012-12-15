@@ -27,11 +27,16 @@ BuildGame.prototype.makeHtml = function(owner) {
     });
   };
 
+  var endDayClick = function() {
+    ShootGame.GAME.setLevel(
+        new Level(Level.loadFromString(Level.randomOfHeight(2)), DEFAULT_BLOCKS));
+  };
+
   var buttons = [
-    {name: 'fortify lair', click: fortifyClick},
+    {name: 'fortify lair', click: fortifyClick, sub: true},
     {name: 'make demands'},
     {name: 'taunt the hero'},
-    {name: 'end the day'},
+    {name: 'end the day', click: endDayClick},
   ];
 
   var bs = owner.select('.left').selectAll('button.action')
@@ -45,7 +50,9 @@ BuildGame.prototype.makeHtml = function(owner) {
     bs.classed('selected', false);
     if (d.click) {
       d.click(d);
-      d3.select(this).classed('selected', true);
+      if (d.sub) {
+        d3.select(this).classed('selected', true);
+      }
     } else {
       owner.select('.right').selectAll('button.subAction').remove();
     }
@@ -177,6 +184,7 @@ ShootGame.tickEntFn = function(t) {
 };
 
 ShootGame.prototype.setLevel = function(level) {
+  this.hero_.collider_.aabb.setXY(Block.SIZE, Block.SIZE);
   this.level_ = level;
 };
 
