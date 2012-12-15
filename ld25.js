@@ -1,3 +1,26 @@
+var FIRSTS = [
+  'david', 'lukas', 'nathan', 'amar', 'aaron', 'leon', 'jan', 'alejandro',
+  'sarah', 'emma', 'amelia', 'sofia', 'hanna', 'mathilda', 'alice',
+  'liam', 'jayden', 'sebastian', 'gunter',
+  'ava', 'xena', 'emma lou', 'camila',
+  'bob', 'jorge', 'jane', 'nancy', 'paul', 'sergio', 'chloe',
+];
+var LASTS = [
+  'wilson', 'kelly', 'morrison', 'sanders', 'griffiths', 'wilson-wilson',
+  'erikson', 'anderson', 'garcia', 'serrano', 'gomez', 'popa', 'novak',
+  'de groot', 'de vries', 'van der meer', 'van leeuwen', 'bianchi',
+  'smith', 'clark', 'wright', 'king', 'baker', 'green', 'parker', 'edwards',
+  'morgan', 'hooper', 'watson',
+];
+var DESCRIPTS = [
+  'knitter', 'mean pool shot', 'regional pong champ', 'dancer', 'family-person',
+  'lover of cheese', 'bibliophile', 'conspiracy theorist', 'scholar',
+  'master of disaster', 'flatulent oaf', 'thumb-twiddler', 'lifelong slacker',
+  'frequent masturbator', 'virgin', 'champion pogo stick racer',
+  'horse jockey', 'poodle breeder', 'doctor', 'lawyer', 'plebe',
+  'nincompoop', 'doofus',
+];
+
 var Villain = function(ui) {
   this.funds = 50;
   this.evilness = 0;
@@ -106,11 +129,16 @@ LevelEdit.prototype.handleEvent = function(e) {
       if (this.game.villain_.funds >= this.clazz.price) {
         this.game.villain_.spend(this.clazz.price);
         this.game.addParticle(new FloatText(
-            '-$' + this.clazz.price, '#34ab1c',
+            '-$' + this.clazz.price,
             this.piece.collider_.cx(), this.piece.collider_.y(),
-            5, -10));
+            {dx: 5, dy: -10, color: '#34ab1c'}));
         this.game.addEnemy(this.piece);
         this.piece = new this.clazz(-100, -100);
+      } else {
+        this.game.addParticle(new FloatText(
+            'no $',
+            this.piece.collider_.cx(), this.piece.collider_.y(),
+            {dx: 5, dy: -10, color: '#ab1c1c'}));
       }
     }
   }
@@ -245,13 +273,36 @@ ShootGame.prototype.setLevel = function(level) {
   this.possessI = -1;
 };
 
-ShootGame.prototype.nextPossess = function() {
+ShootGame.prototype.nextPossess = function(opt_dir) {
   var foundI = -1;
-  for (var i = 0; i < this.enemies.length; ++i) {
-    foundI = this.possessI + i + 1;
-    foundI %= this.enemies.length;
-    if (this.enemies[foundI] && !this.enemies[foundI].dead) {
-      break;
+  if (opt_dir) {
+    for (var i = 0; i < this.enemies.length; ++i) {
+      foundI = this.possessI + opt_dir * (i + 1);
+      foundI %= this.enemies.length;
+      if (foundI < 0) {
+        foundI += this.enemies.length;
+      }
+      if (this.enemies[foundI] && !this.enemies[foundI].dead) {
+        break;
+      }
+    }
+  } else {
+    var best = null;
+    var bestD = Infinity;
+    for (var i = 0; i < this.enemies.length; ++i) {
+      var e = this.enemies[i];
+      if (e && !e.dead) {
+        var dx = e.collider_.cx() - this.hero_.collider_.cx();
+        var dy = e.collider_.cy() - this.hero_.collider_.cy();
+        var d = dx * dx + dy * dy * 3;
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      }
+    }
+    if (best) {
+      foundI = best;
     }
   }
   if (foundI != this.possessI && foundI >= 0) {
@@ -269,13 +320,13 @@ ShootGame.prototype.tick = function(t) {
   var tickFn = ShootGame.tickEntFn(t);
   this.particles.forEach(tickFn);
 
-  if (!this.ticking) return;
-
   if (KB.keyPressed(Keys.TAB)) {
-    this.nextPossess();
+    this.nextPossess(KB.keyDown(Keys.SHIFT) ? -1 : 1);
   } else if (!this.enemies[this.possessI] || this.enemies[this.possessI].dead) {
     this.nextPossess();
   }
+
+  if (!this.ticking) return;
 
   this.hero_.tick(t);
 
@@ -327,6 +378,17 @@ ShootGame.prototype.tick = function(t) {
         enemy.dead = true;
         this.addParticle(new DeathFall(enemy, '#f56f58',
             sgn(enemy.collider_.lastCollision.object.vx)));
+        this.ticking = false;
+        var ft = new FloatText(
+          [pick(FIRSTS), pick(LASTS), '-', pick(DESCRIPTS)].join(' '),
+          enemy.collider_.cx(), enemy.collider_.y() - 5,
+          {dy: -10, color: '#ccc', font: '12px Helvetica', t: 1.2});
+        var ot = bind(ft.tick, ft);
+        ft.tick = function(t) {
+          ot(t);
+          ShootGame.GAME.ticking = this.dead;
+        };
+        this.addParticle(ft);
       }
     }
   }, this);
@@ -474,10 +536,10 @@ Actor.prototype.tick = function(t) {
   if (this.controller.shoot() && this.nextShot < 0) {
     this.nextShot = this.opts.shotDelay;
     ShootGame.GAME.addBullet(new Bullet(
-        this.collider_.cx(),// + this.facing * this.collider_.w() / 2,
+        this.collider_.cx(),
         this.collider_.cy(),
         this.facing * 160 * 1.5,
-        {ignore: this.opts.bulletIgnore}));
+        this.opts.bullet));
   }
 };
 
@@ -499,7 +561,9 @@ Actor.prototype.handleLevelCollide = function(collide) {
 
 var Hero = function(x, y) {
   baseCtor(this, x, y, 8, 16, {
-    bulletIgnore: Ignore.HERO | Ignore.BULLET,
+    bullet: {
+      ignore: Ignore.HERO | Ignore.BULLET,
+    },
   });
 
   this.controller = new AiController(this);
@@ -515,7 +579,8 @@ Hero.prototype.render = function(renderer) {
 
 var Mook = function(x, y, opt_opts) {
   var opts = opt_opts || {};
-  opts.bulletIgnore = Ignore.MOOK | Ignore.BULLET;
+  opts.bullet = opts.bullet || {};
+  opts.bullet.ignore = Ignore.MOOK | Ignore.BULLET;
   baseCtor(this, x, y, opts.w || 8, opts.h || 16, opts);
   this.collider_.ignore = Ignore.MOOK;
   this.possessed = false;
@@ -624,21 +689,22 @@ Explosion.prototype.render = function(renderer) {
   ctx.globalAlpha = 1;
 };
 
-var FloatText = function(text, color, x, y, opt_dx, opt_dy) {
-  baseCtor(this, 1);
+var FloatText = function(text, x, y, opts) {
+  baseCtor(this, opts.t || 1);
   this.x = x;
   this.y = y;
   this.text = text;
-  this.color = color;
-  this.dx = opt_dx || 0;
-  this.dy = opt_dy || 0;
+  this.font = opts.font || '18px monospace';
+  this.color = opts.color || '#000';
+  this.dx = opts.dx || 0;
+  this.dy = opts.dy || 0;
 };
 inherit(FloatText, Particle);
 
 FloatText.prototype.render = function(renderer) {
   var ctx = renderer.context();
   ctx.save();
-  ctx.font = '12px monospace';
+  ctx.font = this.font;
   ctx.textAlign = 'center';
   ctx.testBaseline = 'middle';
   ctx.fillStyle = this.color;
