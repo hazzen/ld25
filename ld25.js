@@ -602,10 +602,12 @@ ShootGame.prototype.tick = function(t) {
       if (bullet.collider_.lastCollision) {
         bullet.dead = true;
         if (bullet.collider_.ignore & Ignore.MOOK) {
+          this.hero_.collider_.vx +=
+              sgn(bullet.collider_.vx) * this.hero_.maxSpeed * 0.4 * bullet.collider_.damage / 5;
           var amount = bullet.collider_.damage || 1;
           this.villain_.spend(-amount);
           this.addParticle(new FloatText(
-              '+$' + amount.toFixed(2),
+              '+$' + amount,
               bullet.collider_.cx(), bullet.collider_.y(),
               {dx: 5, dy: -10, color: '#34ab1c'}));
         }
@@ -809,16 +811,18 @@ Actor.prototype.tick = function(t) {
   var down = false;
   if (this.controller.left()) {
     this.facing = -1;
-    this.collider_.vx = -this.maxSpeed;
+    this.collider_.vx -= this.maxSpeed * t;
     down = true;
   }
   if (this.controller.right()) {
     this.facing = 1;
-    this.collider_.vx = this.maxSpeed;
+    this.collider_.vx += this.maxSpeed * t;
     down = true;
   }
   if (Math.abs(this.collider_.vx) > this.maxSpeed) {
     this.collider_.vx = sgn(this.collider_.vx) * this.maxSpeed;
+  } else if (Math.abs(this.collider_.vx) > 0.1 * this.maxSpeed) {
+    this.collider_.vx -= sgn(this.collider_.vx) * this.maxSpeed * 0.05 * t;
   } else if (!down) {
     this.collider_.vx = 0;
   }
@@ -1097,7 +1101,7 @@ var FloatText = function(text, x, y, opts) {
   this.y = y;
   this.align = opts.align || 'center';
   this.text = text;
-  this.font = opts.font || '18px monospace';
+  this.font = opts.font || '18px helvetica';
   this.color = opts.color || '#000';
   this.dx = opts.dx || 0;
   this.dy = opts.dy || 0;
