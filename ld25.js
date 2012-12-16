@@ -48,6 +48,11 @@ Villain.prototype.spend = function(amt) {
   this.updateUi();
 };
 
+Villain.prototype.villify = function(amt) {
+  this.evilness += amt;
+  this.updateUi();
+};
+
 var Ignore = {
   MOOK: 1 << 0,
   HERO: 1 << 1,
@@ -56,7 +61,8 @@ var Ignore = {
 
 var BuildGame = function(owner) {
   this.owner = d3.select(owner);
-  this.day = 0;
+  this.day = 1;
+  this.ownedProps = [Levels.LAB];
   BuildGame.GAME = this;
   this.levelOver();
 };
@@ -77,6 +83,7 @@ BuildGame.prototype.makeHtml = function() {
     bs.enter().append('button')
         .attr('class', 'subAction');
     bs
+        .classed('selected', false)
         .text(function(d) { return d.name + ' - $' + d.clazz.price; });
 
     bs.on('click', function(d) {
@@ -85,25 +92,48 @@ BuildGame.prototype.makeHtml = function() {
       d3.select(this).classed('selected', true);
     });
   };
+  var fortifyUnclick = function(o) {
+    ShootGame.GAME.levelEdit_.unlisten(RENDERER.elem());
+  };
 
   var blackMarketThings = [
-    {name: 'space laser', price: '6000'},
-    {name: 'submarine yard', price: '6000'},
-    {name: 'totally awesome lab', price: '6000'},
-    {name: 'moon base', price: '6000'},
+    {kind: Levels.WAREHOUSE, price: '100', evil: 10},
+    {kind: Levels.SUBYARD, price: '300', evil: 50},
+    {kind: Levels.LAB, price: '400', evil: 80},
+    {kind: Levels.MOON, price: '1000', evil: 300},
   ];
-  var blackMarketClick = function(o) {
+  var blackMarketClick = bind(function(o) {
     var bs = owner.select('.sub').selectAll('button.subAction')
         .data(blackMarketThings);
     bs.exit().remove();
     bs.enter().append('button')
         .attr('class', 'subAction');
     bs
-        .text(function(d) { return d.name + ' - $' + d.price; });
+        .classed('selected', false)
+        .text(function(d) { return d.kind + ' $' + d.price; });
 
-    bs.on('click', function(d) {
-    });
-  };
+    bs.on('click', bind(function(d) {
+      if (ShootGame.GAME.villain_.funds >= d.price) {
+        ShootGame.GAME.villain_.spend(d.price);
+        ShootGame.GAME.villain_.villify(d.evil);
+        this.ownedProps.push(d.kind);
+
+        ShootGame.GAME.addParticle(new FloatText(
+            'sweet new "' + d.kind + '"!',
+            320, 430,
+            {dy: -10, color: '#fff', font: '12px Helvetica'}));
+        ShootGame.GAME.addParticle(new FloatText(
+            '-$' + d.price,
+            320, 450,
+            {dy: -10, color: '#34ab1c'}));
+      } else {
+        ShootGame.GAME.addParticle(new FloatText(
+            'no $',
+            320, 450,
+            {dy: -10, color: '#ab1c1c'}));
+      }
+    }, this));
+  }, this);
 
   var endDayClick = function() {
     ShootGame.GAME.play();
@@ -112,8 +142,8 @@ BuildGame.prototype.makeHtml = function() {
   };
 
   var buttons = [
-    {name: 'fortify lair', click: fortifyClick, sub: true},
-    {name: 'black market', click: blackMarketClick, sub: true},
+    {name: 'fortify lair', unclick: fortifyUnclick, click: fortifyClick, sub: true},
+    {name: 'buy real estate', click: blackMarketClick, sub: true},
     {name: 'make demands'},
     {name: 'taunt the hero'},
     {name: 'end the day', click: endDayClick},
@@ -126,12 +156,17 @@ BuildGame.prototype.makeHtml = function() {
       .attr('class', 'action');
   bs
       .text(function(d) { return d.name; });
+  var last = null;
   bs.on('click', function(d) {
     bs.classed('selected', false);
     if (d.click) {
       d.click(d);
+      if (last && last != d && last.unclick) {
+        last.unclick();
+      }
       if (d.sub) {
         d3.select(this).classed('selected', true);
+        last = d;
       }
     } else {
       owner.select('.sub').selectAll('button.subAction').remove();
@@ -142,8 +177,25 @@ BuildGame.prototype.makeHtml = function() {
 BuildGame.prototype.levelOver = function() {
   this.owner.selectAll('button').style('display', 'inherit');
   this.day++;
-  ShootGame.GAME.setLevel(
-      Level.randomOfHeight(Math.min(4, this.day), Levels.WAREHOUSE));
+  if (this.ownedProps.length) {
+    var nextKind = pickPop(this.ownedProps);
+    ShootGame.GAME.setLevel(
+        Level.randomOfHeight(Math.min(4, this.day), nextKind));
+    ShootGame.GAME.addParticle(new FloatText(
+        'DAY ' + this.day,
+        320, 30,
+        {t: 5, dy: -10, color: '#fff', font: '18px Helvetica'}));
+    ShootGame.GAME.addParticle(new FloatText(
+        'bad-enough dudes invading our',
+        320, 50,
+        {t: 5, dy: -10, color: '#fff', font: '12px Helvetica'}));
+    ShootGame.GAME.addParticle(new FloatText(
+        nextKind,
+        320, 62,
+        {t: 5, dy: -10, color: '#fff', font: '12px Helvetica'}));
+  } else {
+    alert('LOSER!');
+  }
 };
 
 var LevelEdit = function(game) {
@@ -384,7 +436,7 @@ ShootGame.prototype.tick = function(t) {
   this.hero_.handleLevelCollide(collide);
   var heroBlock = this.level_.blockAt(
     this.hero_.collider_.cx(), this.hero_.collider_.cy());
-  if (heroBlock && heroBlock == 'o' && !this.hero_.dead) {
+  if (KB.keyPressed('k') || (heroBlock && heroBlock == 'o' && !this.hero_.dead)) {
     this.hero_.dead = true;
     var cx = this.hero_.collider_.cx();
     var cy = this.hero_.collider_.cy();
@@ -724,6 +776,7 @@ Mook.TURRET = {
       w: 14,
       h: 16,
       shotDelay: 0.5,
+      life: 5,
       bullet: {
         vx: partial(randFlt, 150, 180),
         vy: partial(randFlt, -10, 10),
@@ -774,22 +827,26 @@ inherit(Turret, Mook);
 
 Turret.prototype.render = function(renderer) {
   var ctx = renderer.context();
+  ctx.fillStyle = '#888';
+  ctx.fillRect(this.collider_.x(), this.collider_.y() + 2,
+               this.collider_.w(), this.collider_.h() - 6);
+
   if (this.possessed) {
     ctx.fillStyle = '#f9a494';
   } else {
     ctx.fillStyle = '#f56f58';
   }
-  ctx.fillRect(this.collider_.x(), this.collider_.y(),
-               this.collider_.w(), this.collider_.h() - 4);
+  ctx.fillRect(this.collider_.cx(), this.collider_.y(),
+               -this.facing * this.collider_.w() / 2, this.collider_.h() - 6);
+  ctx.fillRect(this.collider_.cx(), this.collider_.y() + this.collider_.h() - 4,
+               -this.facing * this.collider_.w() / 2, 4);
 
   ctx.fillStyle = '#888';
   ctx.fillRect(this.collider_.cx(), this.collider_.cy() - 2,
                this.collider_.w() * this.facing, 4);
 
-  ctx.fillRect(this.collider_.cx() - 6, this.collider_.cy(),
-               2, this.collider_.h() / 2);
-  ctx.fillRect(this.collider_.cx() + 4, this.collider_.cy(),
-               2, this.collider_.h() / 2);
+  ctx.fillRect(this.collider_.cx() + this.facing * 6, this.collider_.cy(),
+               this.facing * 2, this.collider_.h() / 2);
 };
 
 
@@ -920,10 +977,10 @@ Block.RENDER_WALL = function(color) {
 };
 
 var Levels = {
-  WAREHOUSE: 1,
-  SUBYARD: 2,
-  LAB: 3,
-  MOON: 4,
+  WAREHOUSE: 'totally not shady warehouse',
+  SUBYARD: 'submarine yard',
+  LAB: 'awesome science lab',
+  MOON: 'a base! on the moon!',
 };
 
 Block.RENDER_CRATE = function(hslColor, opt_a) {
@@ -948,19 +1005,22 @@ Block.RENDER_CRATE = function(hslColor, opt_a) {
     ctx.globalAlpha = 1;
   };
 };
-Block.RENDER_LIGHT = function(renderer, x, y) {
-  var ctx = renderer.context();
-  ctx.fillStyle = '#666';
-  ctx.fillRect(x, y, Block.SIZE, 4);
+Block.RENDER_LIGHT = function(c) {
+  c = c || 'rgba(255, 224, 122, 0.5)';
+  return function(renderer, x, y) {
+    var ctx = renderer.context();
+    ctx.fillStyle = '#666';
+    ctx.fillRect(x, y, Block.SIZE, 4);
 
-  ctx.fillStyle = 'rgba(255, 224, 122, 0.5)';
-  ctx.beginPath();
-  ctx.moveTo(x + Block.SIZE / 4, y + 4);
-  ctx.lineTo(x + 3 * Block.SIZE / 4, y + 4);
-  ctx.lineTo(x + 2 * Block.SIZE, y + 2 * Block.SIZE);
-  ctx.lineTo(x - Block.SIZE, y + 2 * Block.SIZE);
-  ctx.closePath();
-  ctx.fill();
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.moveTo(x + Block.SIZE / 4, y + 4);
+    ctx.lineTo(x + 3 * Block.SIZE / 4, y + 4);
+    ctx.lineTo(x + 2 * Block.SIZE, y + 2 * Block.SIZE);
+    ctx.lineTo(x - Block.SIZE, y + 2 * Block.SIZE);
+    ctx.closePath();
+    ctx.fill();
+  };
 };
 Block.RENDER_L = function(renderer, x, y) {
   var ctx = renderer.context();
@@ -980,6 +1040,11 @@ Block.RENDER_U = function(renderer, x, y) {
   ctx.fillRect(x, y, Block.SIZE, Block.SIZE / 2);
   ctx.fillRect(x + Block.SIZE / 4, y + Block.SIZE / 2, Block.SIZE / 2, Block.SIZE / 2);
 };
+Block.RENDER_POST = function(renderer, x, y) {
+  var ctx = renderer.context();
+  ctx.fillStyle = '#111';
+  ctx.fillRect(x + Block.SIZE / 4, y, Block.SIZE / 2, Block.SIZE);
+};
 
 var WAREHOUSE_BLOCKS = {
   '1': new Block(Block.RENDER_WALL('#888'), Block.COLLIDE_ALL),
@@ -990,7 +1055,8 @@ var WAREHOUSE_BLOCKS = {
   '2': new Block(Block.RENDER_CRATE(new Hsl(21 / 255, 0.14, 0.43)),
                  Block.COLLIDE_ALL),
 
-  '-': new Block(Block.RENDER_LIGHT, Block.COLLIDE_TOP),
+  '-': new Block(Block.RENDER_LIGHT(), Block.COLLIDE_TOP),
+  '|': new Block(Block.RENDER_POST, Block.COLLIDE_NONE),
 
   'o': new Block(function(renderer, x, y) {
          var ctx = renderer.context();
@@ -1004,15 +1070,64 @@ var WAREHOUSE_BLOCKS = {
   '^': new Block(Block.RENDER_U, Block.COLLIDE_NONE),
 };
 var SUBYARD_BLOCKS = {
-  '1': new Block(Block.RENDER_WALL('#888'), Block.COLLIDE_ALL),
+  '1': new Block(Block.RENDER_WALL('#68a'), Block.COLLIDE_ALL),
 
-  '#': new Block(Block.RENDER_CRATE(new Hsl(21 / 255, 0.14, 0.43), 0.5),
+  '#': new Block(Block.RENDER_CRATE(new Hsl(115 / 255, 0.14, 0.43), 0.5),
                  Block.COLLIDE_NONE),
 
-  '2': new Block(Block.RENDER_CRATE(new Hsl(21 / 255, 0.14, 0.43)),
+  '2': new Block(Block.RENDER_CRATE(new Hsl(115 / 255, 0.14, 0.43)),
                  Block.COLLIDE_ALL),
 
-  '-': new Block(Block.RENDER_LIGHT, Block.COLLIDE_TOP),
+  '-': new Block(Block.RENDER_LIGHT('rgba(80, 140, 120, 0.2)'), Block.COLLIDE_TOP),
+  '|': new Block(Block.RENDER_POST, Block.COLLIDE_NONE),
+
+  'o': new Block(function(renderer, x, y) {
+         var ctx = renderer.context();
+         ctx.fillStyle = '#1f1';
+         ctx.fillRect(x, y, Block.SIZE, Block.SIZE);
+       },
+       Block.COLLIDE_NONE),
+
+  '>': new Block(Block.RENDER_R, Block.COLLIDE_NONE),
+  '<': new Block(Block.RENDER_L, Block.COLLIDE_NONE),
+  '^': new Block(Block.RENDER_U, Block.COLLIDE_NONE),
+};
+
+var LAB_BLOCKS = {
+  '1': new Block(Block.RENDER_WALL('#598'), Block.COLLIDE_ALL),
+
+  '#': new Block(Block.RENDER_CRATE(new Hsl(0 / 255, 0.1, 0.47), 0.5),
+                 Block.COLLIDE_NONE),
+
+  '2': new Block(Block.RENDER_CRATE(new Hsl(0 / 255, 0.1, 0.47)),
+                 Block.COLLIDE_ALL),
+
+  '-': new Block(Block.RENDER_LIGHT('rgba(244, 255, 250, 0.6)'), Block.COLLIDE_TOP),
+  '|': new Block(Block.RENDER_POST, Block.COLLIDE_NONE),
+  '_': new Block(function(renderer, x, y) {
+         var ctx = renderer.context();
+         ctx.fillStyle = '#3e3932';
+         ctx.fillRect(x, y, Block.SIZE, 2);
+         ctx.fillRect(x + 2, y, 1, Block.SIZE);
+         ctx.fillRect(x + Block.SIZE - 3, y, 1, Block.SIZE);
+       },
+       Block.COLLIDE_TOP),
+  '*': new Block(function(renderer, x, y) {
+         var ctx = renderer.context();
+         ctx.fillStyle = '#69a6c3';
+         for (var i = 1; i < 4; i += 2) {
+           ctx.beginPath();
+           ctx.moveTo(x + i * Block.SIZE / 4 - 1, y + Block.SIZE / 2);
+           ctx.lineTo(x + i * Block.SIZE / 4 + 1, y + Block.SIZE / 2);
+           ctx.lineTo(x + i * Block.SIZE / 4 + 1, y + Block.SIZE / 2 + 2);
+           ctx.lineTo(x + (i + 1) * Block.SIZE / 4, y + Block.SIZE);
+           ctx.lineTo(x + (i - 1) * Block.SIZE / 4, y + Block.SIZE);
+           ctx.lineTo(x + i * Block.SIZE / 4 - 1, y + Block.SIZE / 2 + 2);
+           ctx.closePath();
+           ctx.fill();
+         }
+       },
+       Block.COLLIDE_NONE),
 
   'o': new Block(function(renderer, x, y) {
          var ctx = renderer.context();
@@ -1028,12 +1143,13 @@ var SUBYARD_BLOCKS = {
 BLOCKS = {};
 BLOCKS[Levels.WAREHOUSE] = WAREHOUSE_BLOCKS;
 BLOCKS[Levels.SUBYARD] = SUBYARD_BLOCKS;
+BLOCKS[Levels.LAB] = LAB_BLOCKS;
 
-for (var b in WAREHOUSE_BLOCKS) {
-  WAREHOUSE_BLOCKS[b.charCodeAt(0)] = WAREHOUSE_BLOCKS[b];
-}
-for (var b in SUBYARD_BLOCKS) {
-  SUBYARD_BLOCKS[b.charCodeAt(0)] = WAREHOUSE_BLOCKS[b];
+for (var k in BLOCKS) {
+  var BS = BLOCKS[k];
+  for (var b in BS) {
+    BS[b.charCodeAt(0)] = BS[b];
+  }
 }
 
 var DEFAULT_CHUNKS = {
@@ -1048,7 +1164,7 @@ var DEFAULT_CHUNKS = {
       '1111111111111111111',
     ],
     [
-      'R                21',
+      'R|    |    |     21',
       '--- ^--- ^---   <21',
       '               <221',
       '    221111111111111',
@@ -1110,7 +1226,66 @@ var DEFAULT_CHUNKS = {
   ],
 };
 
+SUBYARD_CHUNKS = {
+  left: [
+    [
+      '          ####     ',
+      '          ####     ',
+      '     ^^ <<####<    ',
+      '   1>^^11111111    ',
+      '   11 ---    --    ',
+      'o  11^            L',
+      '1111111111111111111',
+    ],
+  ],
+};
+
+LAB_CHUNKS = {
+  right: [
+    [
+      '                   ',
+      '                   ',
+      '                   ',
+      '                   ',
+      '  *     *    * *   ',
+      'R^_   ^__   ^___  o',
+      '1111111111111111111',
+    ],
+    [
+      'R                 2',
+      '11111111111  *  *<2',
+      '             _  _<2',
+      '>111111111111111111',
+      '  *     *    * *   ',
+      '>^_   ^__   ^___  o',
+      '1111111111111111111',
+    ],
+  ],
+  left: [
+    [
+      '                   ',
+      '                   ',
+      '                   ',
+      '                   ',
+      '  * *         **   ',
+      'o _ _^ _  ^   __^ L',
+      '1111111111111111111',
+    ],
+    [
+      'o          < 11L   ',
+      '11111111111<<11>   ',
+      '1         > ^11>   ',
+      '1>^^1111111111111  ',
+      '11^--   *    * *  <',
+      '1111^ <__ <  ___  <',
+      '1111111111111111111',
+    ],
+  ],
+};
+
 var SPECIAL_CHUNKS = {};
+SPECIAL_CHUNKS[Levels.SUBYARD] = SUBYARD_CHUNKS;
+SPECIAL_CHUNKS[Levels.LAB] = LAB_CHUNKS;
 
 Level.randomOfHeight = function(floors, kind) {
   var dir = 1;

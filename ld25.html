@@ -44,6 +44,9 @@
       var gameStruct = {
         elem: gameElem,
         tick: function(t) {
+          if (KB.keyPressed('m')) {
+            shootGame.villain_.spend(-100);
+          }
           if (KB.keyPressed('h')) {
             stepping = !stepping;
           }

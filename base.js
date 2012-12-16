@@ -63,6 +63,16 @@ function pick(arr) {
   return arr[randInt(arr.length)];
 };
 
+function pickPop(arr) {
+  var i = randInt(arr.length);
+  if (i != arr.length) {
+    var t = arr[i];
+    arr[i] = arr[arr.length - 1];
+    arr[arr.length - 1] = t;
+  }
+  return arr.pop();
+};
+
 function sgn(n) {
   return n < 0 ? -1 : (n > 0 ? 1 : 0);
 };
