@@ -32,19 +32,23 @@ button.selected {
 
 .left {
   float: left;
+  max-width: 220px;
   margin: 5px;
 }
 
 .sub {
   float: left;
+  max-width: 220px;
   margin: 5px;
 }
 
 .funds {
   float: right;
+  max-width: 350px;
   margin: 5px;
 }
 
 .funds .disp {
   font-family: monospace;
+  text-align: right;
 }

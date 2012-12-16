@@ -24,17 +24,29 @@ var DESCRIPTS = [
 var Villain = function(ui) {
   this.funds = 50;
   this.evilness = 0;
+  this.props = [Levels.WAREHOUSE, Levels.WAREHOUSE, Levels.WAREHOUSE];
   this.ui = ui;
   this.updateUi();
 };
 
 Villain.prototype.updateUi = function() {
+  var lairs = {};
+  for (var i = 0; i < this.props.length; ++i) {
+    lairs[this.props[i]] = (lairs[this.props[i]] || 0) + 1;
+  }
+  var lairStr = [];
+  for (var kind in lairs) {
+    var amt = lairs[kind];
+    lairStr.push(amt + ' ' + kind + (amt == 1 ? '' : 's'));
+  }
+  lairStr = lairStr.join(', ');
   var disps = this.ui.selectAll('div.disp').data([
-    ['funds', this.funds],
+    ['funds', this.funds.toFixed(2)],
     ['evilness', this.evilness],
+    ['evil lairs', lairStr],
   ]);
   var txt = function(d) {
-    return d[0] + ': ' + d[1].toFixed(2);
+    return d[0] + ': ' + d[1];
   };
   disps.enter().append('div')
       .attr('class', 'disp')
@@ -53,6 +65,18 @@ Villain.prototype.villify = function(amt) {
   this.updateUi();
 };
 
+Villain.prototype.addProp = function(prop) {
+  this.props.push(prop);
+  this.updateUi();
+};
+
+Villain.prototype.popProp = function(prop) {
+  if (this.props.length) {
+    return pickPop(this.props);
+  }
+  return null;
+};
+
 var Ignore = {
   MOOK: 1 << 0,
   HERO: 1 << 1,
@@ -62,7 +86,6 @@ var Ignore = {
 var BuildGame = function(owner) {
   this.owner = d3.select(owner);
   this.day = 1;
-  this.ownedProps = [Levels.LAB];
   BuildGame.GAME = this;
   this.levelOver();
 };
@@ -97,10 +120,10 @@ BuildGame.prototype.makeHtml = function() {
   };
 
   var blackMarketThings = [
-    {kind: Levels.WAREHOUSE, price: '100', evil: 10},
-    {kind: Levels.SUBYARD, price: '300', evil: 50},
-    {kind: Levels.LAB, price: '400', evil: 80},
-    {kind: Levels.MOON, price: '1000', evil: 300},
+    Levels.WAREHOUSE,
+    Levels.SUBYARD,
+    Levels.LAB,
+    Levels.MOON,
   ];
   var blackMarketClick = bind(function(o) {
     var bs = owner.select('.sub').selectAll('button.subAction')
@@ -110,20 +133,21 @@ BuildGame.prototype.makeHtml = function() {
         .attr('class', 'subAction');
     bs
         .classed('selected', false)
-        .text(function(d) { return d.kind + ' $' + d.price; });
+        .text(function(d) { return d + ' $' + Levels.Data[d].price; });
 
     bs.on('click', bind(function(d) {
-      if (ShootGame.GAME.villain_.funds >= d.price) {
-        ShootGame.GAME.villain_.spend(d.price);
-        ShootGame.GAME.villain_.villify(d.evil);
-        this.ownedProps.push(d.kind);
+      var ld = Levels.Data[d];
+      if (ShootGame.GAME.villain_.funds >= ld.price) {
+        ShootGame.GAME.villain_.spend(ld.price);
+        ShootGame.GAME.villain_.villify(ld.evil);
+        ShootGame.GAME.villain_.addProp(d);
 
         ShootGame.GAME.addParticle(new FloatText(
-            'sweet new "' + d.kind + '"!',
+            'sweet new "' + d + '"!',
             320, 430,
             {dy: -10, color: '#fff', font: '12px Helvetica'}));
         ShootGame.GAME.addParticle(new FloatText(
-            '-$' + d.price,
+            '-$' + ld.price,
             320, 450,
             {dy: -10, color: '#34ab1c'}));
       } else {
@@ -177,8 +201,8 @@ BuildGame.prototype.makeHtml = function() {
 BuildGame.prototype.levelOver = function() {
   this.owner.selectAll('button').style('display', 'inherit');
   this.day++;
-  if (this.ownedProps.length) {
-    var nextKind = pickPop(this.ownedProps);
+  var nextKind = ShootGame.GAME.villain_.popProp();
+  if (nextKind) {
     ShootGame.GAME.setLevel(
         Level.randomOfHeight(Math.min(4, this.day), nextKind));
     ShootGame.GAME.addParticle(new FloatText(
@@ -317,6 +341,7 @@ ShootGame.addEnt = function(ents, ent) {
 
 ShootGame.prototype.play = function() {
   this.levelEdit_.unlisten(RENDERER.elem());
+  document.getElementById('shoot').focus();
   this.hero_.dead = false;
   this.ticking = true;
 };
@@ -982,6 +1007,12 @@ var Levels = {
   LAB: 'awesome science lab',
   MOON: 'a base! on the moon!',
 };
+
+Levels.Data = {};
+Levels.Data[Levels.WAREHOUSE] = {price: 100, evil: 10};
+Levels.Data[Levels.SUBYARD] = {price: 300, evil: 50};
+Levels.Data[Levels.LAB] = {price: 400, evil: 80};
+Levels.Data[Levels.MOON] = {price: 1000, evil: 300};
 
 Block.RENDER_CRATE = function(hslColor, opt_a) {
   var a = opt_a || 1;
