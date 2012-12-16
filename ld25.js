@@ -1041,7 +1041,7 @@ Mook.LASER_TURRET = {
       bullet: {
         vx: partial(randFlt, 150, 180),
         vy: partial(randFlt, -1, 1),
-        damage: 0.2,
+        damage: 0.3,
         w: 10,
         h: 1.5,
         c: '#a45',
@@ -1553,7 +1553,7 @@ SPECIAL_CHUNKS = {
       '   2               ',
       '   22 2            ',
       '>  22 2     22     ',
-      '^^^####    222     ',
+      '^^ ####    222     ',
       '^^22222  > ###    o',
       '11111111111111ddddd',
     ]},
