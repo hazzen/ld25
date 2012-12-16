@@ -131,6 +131,7 @@ BuildGame.prototype.makeHtml = function() {
     {name: 'thug [gun]', clazz: Mook.GUN},
     {name: 'thug [shotgun]', clazz: Mook.SHOTGUN},
     {name: 'turret [bullets]', clazz: Mook.TURRET},
+    {name: 'turret [laser]', clazz: Mook.LASER_TURRET},
   ];
   var fortifyClick = function(o) {
     var bs = owner.select('.sub').selectAll('button.subAction')
@@ -316,7 +317,7 @@ BuildGame.prototype.levelOver = function() {
         320, 82,
         {t: 5, dy: -10, color: '#fff', font: '12px Helvetica'}));
     ShootGame.GAME.hero_.maxSpeed = 70 + 2 * this.day;
-    ShootGame.GAME.hero_.opts.shotDelay = Math.max(0.5, 2 - this.day * 0.2);
+    ShootGame.GAME.hero_.setShotDelay(Math.max(0.5, 2 - this.day * 0.1));
   } else {
     ShootGame.GAME.addParticle(new FloatText(
         'snap! you\'ve run out of lairs to conveniently leave poorly defended',
@@ -639,11 +640,12 @@ ShootGame.prototype.tick = function(t) {
           this.hero_.collider_.vx +=
               sgn(bullet.collider_.vx) * this.hero_.maxSpeed * 0.4 * bullet.collider_.damage / 5;
           var amount = bullet.collider_.damage || 1;
+          this.hero_.subShotDelay(bullet.collider_.damage * 0.02);
           this.villain_.spend(-amount);
           this.addParticle(new FloatText(
               '+$' + amount,
               bullet.collider_.cx(), bullet.collider_.y(),
-              {dx: 5, dy: -10, color: '#34ab1c'}));
+              {dx: randFlt(-10, 10), dy: -50, color: '#34ab1c'}));
         }
       }
     }
@@ -793,6 +795,7 @@ var Bullet = function(x, y, facing, opts) {
   this.collider_.ignore = opts.ignore;
   this.collider_.damage = opts.damage || 1;
   this.life = opts.life || Infinity;
+  this.c = opts.c || '#666';
 };
 
 Bullet.prototype.tick = function(t) {
@@ -811,7 +814,7 @@ Bullet.prototype.handleLevelCollide = function(collide) {
 
 Bullet.prototype.render = function(renderer) {
   var ctx = renderer.context();
-  ctx.fillStyle = '#666';
+  ctx.fillStyle = this.c;
   ctx.fillRect(this.collider_.x(), this.collider_.y(),
                this.collider_.w(), this.collider_.h());
 };
@@ -905,14 +908,43 @@ var Hero = function(x, y) {
     bullet: {
       ignore: Ignore.HERO | Ignore.BULLET,
       w: 8,
-      h: 8,
+      h: 2,
+      c: '#fff',
     },
   });
+
+  this.initDelay = this.opts.shotDelay;
 
   this.collider_.ignore = Ignore.HERO;
   this.controller = new AiController(this);
 };
 inherit(Hero, Actor);
+
+Hero.prototype.tick = function(t) {
+  base(this, 'tick', t);
+  this.lasthit -= t;
+  if (this.opts.shotDelay < this.initDelay) {
+    var diff = this.initDelay - this.opts.shotDelay;
+    if (diff < this.initDelay * 0.01 && this.lasthit < 0) {
+      this.opts.shotDelay = this.initDelay;
+    } else {
+      this.opts.shotDelay += diff * 0.05 * t;
+    }
+  }
+  this.opts.shotDelay = Math.min(this.opts.shotDelay, this.initDelay);
+};
+
+Hero.prototype.setShotDelay = function(amt) {
+  this.opts.shotDelay = amt;
+  this.initDelay = amt;
+};
+
+
+Hero.prototype.subShotDelay = function(amt) {
+  this.lasthit = 1;
+  this.opts.shotDelay -= amt;
+  this.opts.shotDelay = Math.max(0.05, this.opts.shotDelay);
+};
 
 Hero.prototype.render = function(renderer) {
   var ctx = renderer.context();
@@ -964,6 +996,7 @@ Mook.SHOTGUN = {
       shotDelay: 1,
       numBullets: 5,
       maxSpeed: 30,
+      life: 2,
       bullet: {
         vx: partial(randFlt, 150, 180),
         vy: partial(randFlt, -10, 10),
@@ -989,6 +1022,29 @@ Mook.TURRET = {
         damage: 1,
         w: 10,
         h: 2,
+      },
+    });
+    turret.controller.shoot = function() { return true; };
+    return turret;
+  },
+};
+Mook.LASER_TURRET = {
+  price: 150,
+  make: function() {
+    var turret = new Turret(-100, -100, {
+      maxSpeed: 0,
+      jumpDelta: 0,
+      w: 14,
+      h: 16,
+      shotDelay: 0.02,
+      life: 5,
+      bullet: {
+        vx: partial(randFlt, 150, 180),
+        vy: partial(randFlt, -1, 1),
+        damage: 0.2,
+        w: 10,
+        h: 1.5,
+        c: '#a45',
       },
     });
     turret.controller.shoot = function() { return true; };
