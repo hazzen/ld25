@@ -87,7 +87,7 @@ var Ignore = {
 
 var BuildGame = function(owner) {
   this.owner = d3.select(owner);
-  this.day = 1;
+  this.day = 0;
   BuildGame.GAME = this;
   this.levelOver();
 };
