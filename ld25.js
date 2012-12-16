@@ -186,14 +186,15 @@ BuildGame.prototype.makeHtml = function() {
   bs.on('click', function(d) {
     bs.classed('selected', false);
     if (d.click) {
+      ShootGame.GAME.renderLevel = true;
       d.click(d);
       if (last && last != d && last.unclick) {
         last.unclick();
       }
       if (d.sub) {
         d3.select(this).classed('selected', true);
-        last = d;
       }
+      last = d;
     } else {
       owner.select('.sub').selectAll('button.subAction').remove();
     }
@@ -201,6 +202,7 @@ BuildGame.prototype.makeHtml = function() {
 };
 
 BuildGame.prototype.levelOver = function() {
+  ShootGame.GAME.renderLevel = false;
   this.owner.selectAll('button').style('display', 'inherit');
   this.day++;
   var nextKind = ShootGame.GAME.villain_.popProp();
@@ -327,6 +329,7 @@ LevelEdit.prototype.render = function(renderer) {
 };
 
 var ShootGame = function() {
+  this.renderLevel = false;
   this.ticking = false;
   this.villain_ = new Villain(d3.select('#build .funds'));
   this.hero_ = new Hero(Block.SIZE + 4, Block.SIZE + 4);
@@ -352,6 +355,7 @@ ShootGame.addEnt = function(ents, ent) {
 
 ShootGame.prototype.play = function() {
   this.levelEdit_.unlisten(RENDERER.elem());
+  this.renderLevel = true;
   document.getElementById('shoot').focus();
   this.hero_.dead = false;
   this.ticking = true;
@@ -557,12 +561,16 @@ ShootGame.prototype.tick = function(t) {
 
 ShootGame.prototype.render = function(renderer) {
   var ctx = renderer.context();
-  this.level_.render(renderer);
+  if (this.renderLevel) {
+    this.level_.render(renderer);
+  }
   var renderFn = ShootGame.renderEntFn(renderer);
-  this.ents.forEach(renderFn);
-  this.bullets.forEach(renderFn);
   this.particles.forEach(renderFn);
-  this.hero_.render(renderer);
+  if (this.renderLevel) {
+    this.ents.forEach(renderFn);
+    this.bullets.forEach(renderFn);
+    this.hero_.render(renderer);
+  }
 
   this.levelEdit_.render(renderer);
 
@@ -780,6 +788,8 @@ var Hero = function(x, y) {
   baseCtor(this, x, y, 8, 16, {
     bullet: {
       ignore: Ignore.HERO | Ignore.BULLET,
+      w: 8,
+      h: 8,
     },
   });
 
@@ -813,7 +823,7 @@ Mook.KNIFE = {
       shotDelay: 0.2,
       bullet: {
         life: 0.1,
-        damage: 3,
+        damage: 5,
         vx: 180,
         w: 10,
       },
@@ -825,6 +835,7 @@ Mook.GUN = {
   make: function() {
     return new Mook(-100, -100, {
       shotDelay: 1,
+      damage: 4,
     });
   },
 };
@@ -837,7 +848,7 @@ Mook.SHOTGUN = {
       bullet: {
         vx: partial(randFlt, 150, 180),
         vy: partial(randFlt, -10, 10),
-        damage: 0.5,
+        damage: 1,
         w: 10,
       },
     });
@@ -856,7 +867,7 @@ Mook.TURRET = {
       bullet: {
         vx: partial(randFlt, 150, 180),
         vy: partial(randFlt, -10, 10),
-        damage: 0.5,
+        damage: 1,
         w: 10,
         h: 2,
       },
