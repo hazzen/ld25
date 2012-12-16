@@ -272,14 +272,15 @@ LevelEdit.prototype.isLegal = function(bx, by, piece) {
       legal = true;
     }
   }
-  /*
+  var collides = this.piece.collider_.ignore;
+  this.piece.collider_.ignore = 0;
   if (legal) {
     var colliders = [this.piece.collider_, this.game.hero_.collider_].concat(
         this.game.ents.map(function(f) { return f.collider_; }));
     Collider.stepAll(colliders, 1);
-    return !(this.piece.collider_.lastCollision);
+    legal = !(this.piece.collider_.lastCollision);
   }
-  */
+  this.piece.collider_.ignore = collides;
   return legal;
 };
 
@@ -588,13 +589,22 @@ MookController.prototype.tick = function(t) {
   this.offset -= t;
   if (this.offset < 0) {
     this.offset += 0.2;
+    var mx = this.actor.collider_.cx();
+    var hx = ShootGame.GAME.hero_.collider_.cx();
     var my = this.actor.collider_.cy();
     var hy = ShootGame.GAME.hero_.collider_.cy();
     if (Level.whichFloor(my) <= Level.whichFloor(hy)) {
-      this.doleft = this.actor.facing < 0;
-      this.doright = this.actor.facing > 0;
-      this.dojump = my > hy;
-      this.doshoot = true;
+      if (Level.whichFloor(my) < Level.whichFloor(hy)) {
+        this.doleft = Level.whichFloor(my) % 2 == 1;
+        this.doright = !this.doleft;
+        this.dojump = true;
+        this.doshoot = false;
+      } else {
+        this.doleft = mx > hx;
+        this.doright = !this.doright;
+        this.dojump = false;
+        this.doshoot = true;
+      }
     } else {
       this.doleft = this.doright = this.dojump = this.doshoot = false;
     }
@@ -778,7 +788,7 @@ var Mook = function(x, y, opt_opts) {
   var opts = transformOpts(opt_opts);
   opts.bullet = opts.bullet || {};
   opts.bullet.ignore = Ignore.MOOK | Ignore.BULLET;
-  baseCtor(this, x, y, opts.w || 8, opts.h || 16, opts);
+  baseCtor(this, x, y, opts.w || 8, opts.h || 15, opts);
   this.collider_.ignore = Ignore.MOOK;
   this.possessed = false;
   this.controller = new MookController(this);
