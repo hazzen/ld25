@@ -71,10 +71,12 @@ Villain.prototype.addProp = function(prop) {
 };
 
 Villain.prototype.popProp = function(prop) {
+  var p = null;
   if (this.props.length) {
-    return pickPop(this.props);
+    p = pickPop(this.props);
   }
-  return null;
+  this.updateUi();
+  return p;
 };
 
 var Ignore = {
@@ -170,7 +172,7 @@ BuildGame.prototype.makeHtml = function() {
     {name: 'buy real estate', click: blackMarketClick, sub: true},
     {name: 'make demands'},
     {name: 'taunt the hero'},
-    {name: 'end the day', click: endDayClick},
+    {name: 'let the hero into the lair. it makes sense, trust me.', click: endDayClick},
   ];
 
   var bs = owner.select('.left').selectAll('button.action')
@@ -1003,7 +1005,7 @@ Block.RENDER_WALL = function(color) {
 
 var Levels = {
   WAREHOUSE: 'totally not shady warehouse',
-  SUBYARD: 'submarine yard',
+  SUBYARD: 'submarine yard (subs sold separately)',
   LAB: 'awesome science lab',
   MOON: 'a base! on the moon!',
 };
@@ -1171,10 +1173,36 @@ var LAB_BLOCKS = {
   '<': new Block(Block.RENDER_L, Block.COLLIDE_NONE),
   '^': new Block(Block.RENDER_U, Block.COLLIDE_NONE),
 };
+
+var MOON_BLOCKS = {
+  '1': new Block(Block.RENDER_WALL('#7a908f'), Block.COLLIDE_ALL),
+
+  '#': new Block(Block.RENDER_CRATE(new Hsl(144 / 255, 0.45, 0.32), 0.5),
+                 Block.COLLIDE_NONE),
+
+  '2': new Block(Block.RENDER_CRATE(new Hsl(144 / 255, 0.45, 0.32)),
+                 Block.COLLIDE_ALL),
+
+  '-': new Block(Block.RENDER_LIGHT('rgba(244, 255, 250, 0.05)'), Block.COLLIDE_TOP),
+  '|': new Block(Block.RENDER_POST, Block.COLLIDE_NONE),
+
+  'o': new Block(function(renderer, x, y) {
+         var ctx = renderer.context();
+         ctx.fillStyle = '#1f1';
+         ctx.fillRect(x, y, Block.SIZE, Block.SIZE);
+       },
+       Block.COLLIDE_NONE),
+
+  '>': new Block(Block.RENDER_R, Block.COLLIDE_NONE),
+  '<': new Block(Block.RENDER_L, Block.COLLIDE_NONE),
+  '^': new Block(Block.RENDER_U, Block.COLLIDE_NONE),
+};
+
 BLOCKS = {};
 BLOCKS[Levels.WAREHOUSE] = WAREHOUSE_BLOCKS;
 BLOCKS[Levels.SUBYARD] = SUBYARD_BLOCKS;
 BLOCKS[Levels.LAB] = LAB_BLOCKS;
+BLOCKS[Levels.MOON] = MOON_BLOCKS;
 
 for (var k in BLOCKS) {
   var BS = BLOCKS[k];
@@ -1189,10 +1217,10 @@ var DEFAULT_CHUNKS = {
       'R----   ----   ----',
       '                   ',
       '                   ',
-      '>                  ',
-      '>^                o',
-      '>^2222      ^^22222',
-      '1111111111111111111',
+      '>                 2',
+      '>^               o#',
+      '>^2222      ^^2222#',
+      '111111111111111111d',
     ],
     [
       'R|    |    |     21',
@@ -1200,19 +1228,17 @@ var DEFAULT_CHUNKS = {
       '               <221',
       '    221111111111111',
       '    22             ',
-      '>   ##       ^222 o',
-      '1111111111111111111',
+      '>   ##       ^222o ',
+      '111111111111111111d',
     ],
-  ],
-  rightDown: [
     [
       '  ---   ---   ---  ',
       '                   ',
       '                   ',
       '                   ',
       '                   ',
-      '                   ',
-      '11111111111111     ',
+      'R                 o',
+      '11111111111111ddddd',
     ],
     [
       '  ---   ---   ---  ',
@@ -1220,8 +1246,8 @@ var DEFAULT_CHUNKS = {
       '   22 2            ',
       '   22 2            ',
       '^^^####            ',
-      '^^22222            ',
-      '11111111111111     ',
+      '^^22222           o',
+      '11111111111111ddddd',
     ],
   ],
   left: [
@@ -1230,9 +1256,9 @@ var DEFAULT_CHUNKS = {
       '                  L',
       '                   ',
       '                   ',
-      '       22^^^    ^^ ',
-      'o     2222^^  22^^<',
-      '1111111111111111111',
+      'o      22^^^    ^^ ',
+      'd^^   2222^^  22^^<',
+      'd111111111111111111',
     ],
     [
       ' ----    ----   -- ',
@@ -1241,18 +1267,16 @@ var DEFAULT_CHUNKS = {
       '              2<   ',
       '       22^^^  2^   ',
       'o     2222^^  22^^<',
-      '1111111111111111111',
+      'dddd111111111111111',
     ],
-  ],
-  leftDown: [
     [
       '  ---   ---   ---  ',
       '                   ',
       '                   ',
       '                   ',
       '                   ',
-      '                   ',
-      '      1111111111111',
+      'o                 L',
+      'dddddd1111111111111',
     ],
   ],
 };
@@ -1266,7 +1290,7 @@ SUBYARD_CHUNKS = {
       '   1>^^11111111    ',
       '   11 ---    --    ',
       'o  11^            L',
-      '1111111111111111111',
+      'ddd1111111111111111',
     ],
   ],
 };
@@ -1280,7 +1304,7 @@ LAB_CHUNKS = {
       '                   ',
       '  *     *    * *   ',
       'R^_   ^__   ^___  o',
-      '1111111111111111111',
+      '1111111111111111ddd',
     ],
     [
       'R                 2',
@@ -1289,7 +1313,7 @@ LAB_CHUNKS = {
       '>111111111111111111',
       '  *     *    * *   ',
       '>^_   ^__   ^___  o',
-      '1111111111111111111',
+      '1111111111111111ddd',
     ],
   ],
   left: [
@@ -1300,16 +1324,39 @@ LAB_CHUNKS = {
       '                   ',
       '  * *         **   ',
       'o _ _^ _  ^   __^ L',
-      '1111111111111111111',
+      'dd11111111111111111',
     ],
     [
       'o          < 11L   ',
-      '11111111111<<11>   ',
-      '1         > ^11>   ',
-      '1>^^1111111111111  ',
-      '11^--   *    * *  <',
-      '1111^ <__ <  ___  <',
-      '1111111111111111111',
+      'd1111111111<<11>   ',
+      'd         > ^11>   ',
+      'd>^^1111111111111  ',
+      'd1^--   *    * *  <',
+      'd111^ <__ <  ___  <',
+      'd111111111111111111',
+    ],
+  ],
+};
+
+MOON_CHUNKS = {
+  right: [
+    [
+      '                   ',
+      '                   ',
+      '1111 | 11111 |     ',
+      '   -----   -----   ',
+      '                   ',
+      '                   ',
+      '11111111111111ddddd',
+    ],
+    [
+      '  ---   ---   ---  ',
+      '   2               ',
+      '   22 2            ',
+      '   22 2            ',
+      '^^^####            ',
+      '^^22222            ',
+      '11111111111111ddddd',
     ],
   ],
 };
@@ -1317,6 +1364,7 @@ LAB_CHUNKS = {
 var SPECIAL_CHUNKS = {};
 SPECIAL_CHUNKS[Levels.SUBYARD] = SUBYARD_CHUNKS;
 SPECIAL_CHUNKS[Levels.LAB] = LAB_CHUNKS;
+SPECIAL_CHUNKS[Levels.MOON] = MOON_CHUNKS;
 
 Level.randomOfHeight = function(floors, kind) {
   var dir = 1;
@@ -1325,28 +1373,29 @@ Level.randomOfHeight = function(floors, kind) {
   var first = true;
   for (; floors > 0; --floors) {
     var norm = dir > 0 ? 'right' : 'left';
-    var down = dir > 0 ? 'rightDown' : 'leftDown';
-    normBlocks = DEFAULT_CHUNKS[norm].concat(
+    blocks = DEFAULT_CHUNKS[norm].concat(
       SPECIAL_CHUNKS[kind] && SPECIAL_CHUNKS[kind][norm] || []);
-    var downBlocks = DEFAULT_CHUNKS[down].concat(
-      SPECIAL_CHUNKS[kind] && SPECIAL_CHUNKS[kind][down] || []);
-    var leftHalf = pick(normBlocks);
-    var rightHalf = pick(floors == 1 ? normBlocks : downBlocks);
+    var leftHalf = pick(blocks);
+    var rightHalf = pick(blocks);
     if (!first) {
       leftHalf = leftHalf.map(function(f) {
         return f.replace(/L/g, '<').replace(/R/g, '>');
       });
     }
-    if (!floors == 1) {
+    if (floors != 1) {
       rightHalf = rightHalf.map(function(f) {
-        return f.replace(/o/g, ' ');
+        return f.replace(/[od]/g, ' ');
+      });
+    } else {
+      rightHalf = rightHalf.map(function(f) {
+        return f.replace(/d/g, '1');
       });
     }
     rightHalf = rightHalf.map(function(f) {
       return f.replace(/L/g, '<').replace(/R/g, '>');
     });
     leftHalf = leftHalf.map(function(f) {
-      return f.replace(/o/g, ' ');
+      return f.replace(/o/g, ' ').replace(/d/g, '1');
     });
     if (dir < 0) {
       var t = leftHalf;
