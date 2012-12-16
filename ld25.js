@@ -205,20 +205,28 @@ BuildGame.prototype.levelOver = function() {
   this.day++;
   var nextKind = ShootGame.GAME.villain_.popProp();
   if (nextKind) {
+    var numFloors = [1];
+    for (var i = 0; i < this.day; ++i) numFloors.push(1);
+    for (var i = 0; i < this.day / 2; ++i) numFloors.push(2);
+    for (var i = 4; i < this.day; ++i) numFloors.push(2);
+    for (var i = 6; i < this.day; i += 0.5) numFloors.push(3);
+    for (var i = 8; i < this.day; i += 0.4) numFloors.push(4);
     ShootGame.GAME.setLevel(
-        Level.randomOfHeight(Math.min(4, this.day), nextKind));
+        Level.randomOfHeight(pick(numFloors), nextKind));
     ShootGame.GAME.addParticle(new FloatText(
         'DAY ' + this.day,
-        320, 30,
+        320, 50,
         {t: 5, dy: -10, color: '#fff', font: '18px Helvetica'}));
     ShootGame.GAME.addParticle(new FloatText(
         'bad-enough dudes invading our',
-        320, 50,
+        320, 70,
         {t: 5, dy: -10, color: '#fff', font: '12px Helvetica'}));
     ShootGame.GAME.addParticle(new FloatText(
         nextKind,
-        320, 62,
+        320, 82,
         {t: 5, dy: -10, color: '#fff', font: '12px Helvetica'}));
+    ShootGame.GAME.hero_.maxSpeed = 70 + 2 * this.day;
+    ShootGame.GAME.hero_.opts.shotDelay = Math.max(0.5, 2 - this.day * 0.2);
   } else {
     alert('LOSER!');
   }
@@ -389,7 +397,10 @@ ShootGame.tickEntFn = function(t) {
 ShootGame.prototype.setLevel = function(level) {
   this.ticking = false;
   this.hero_ = new Hero(Block.SIZE + 4, Block.SIZE + 4);
-  this.hero_.collider_.aabb.setXY(Block.SIZE, Block.SIZE);
+  if (level) {
+    this.hero_.collider_.aabb.setXY(level.start[0] * Block.SIZE,
+        level.start[1] * Block.SIZE);
+  }
   this.level_ = level;
 
   this.ents = [];
@@ -601,7 +612,7 @@ MookController.prototype.tick = function(t) {
         this.doshoot = false;
       } else {
         this.doleft = mx > hx;
-        this.doright = !this.doright;
+        this.doright = !this.doleft;
         this.dojump = false;
         this.doshoot = true;
       }
@@ -813,7 +824,7 @@ Mook.GUN = {
   price: 3,
   make: function() {
     return new Mook(-100, -100, {
-      shotDelay: 0.5,
+      shotDelay: 1,
     });
   },
 };
@@ -840,7 +851,7 @@ Mook.TURRET = {
       jumpDelta: 0,
       w: 14,
       h: 16,
-      shotDelay: 0.5,
+      shotDelay: 0.2,
       life: 5,
       bullet: {
         vx: partial(randFlt, 150, 180),
@@ -1266,8 +1277,8 @@ var DEFAULT_CHUNKS = {
       '               <221',
       '    221111111111111',
       '    22             ',
-      '>   ##       ^222o ',
-      '111111111111111111d',
+      '>   ##       ^222oo',
+      '111111111111111dddd',
     ],
     [
       '  ---   ---   ---  ',
@@ -1500,10 +1511,10 @@ Level.loadFromString = function(str, blockMap) {
       var code = lineStr.charCodeAt(i);
       if (code == 'L'.charCodeAt(0)) {
         code = '<'.charCodeAt(0);
-        start = [blocks.length, i];
+        start = [, blocks.length];
       } else if (code == 'R'.charCodeAt(0)) {
         code = '>'.charCodeAt(0);
-        start = [blocks.length, i];
+        start = [i, blocks.length];
       }
       if (code == 32) {
         row.push(0);
