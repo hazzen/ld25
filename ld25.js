@@ -62,7 +62,9 @@ BuildGame.prototype.makeHtml = function() {
   owner = this.owner;
 
   var buyThings = [
-    {name: 'mook', clazz: Mook},
+    {name: 'mook [knife]', clazz: Mook.KNIFE},
+    {name: 'mook [gun]', clazz: Mook.GUN},
+    {name: 'mook [shotgun]', clazz: Mook.SHOTGUN},
   ];
   var fortifyClick = function(o) {
     var bs = owner.select('.sub').selectAll('button.subAction')
@@ -75,6 +77,8 @@ BuildGame.prototype.makeHtml = function() {
 
     bs.on('click', function(d) {
       ShootGame.GAME.levelEdit_.listen(RENDERER.elem(), d.clazz);
+      bs.classed('selected', false);
+      d3.select(this).classed('selected', true);
     });
   };
 
@@ -133,7 +137,7 @@ LevelEdit.prototype.handleEvent = function(e) {
             this.piece.collider_.cx(), this.piece.collider_.y(),
             {dx: 5, dy: -10, color: '#34ab1c'}));
         this.game.addEnemy(this.piece);
-        this.piece = new this.clazz(-100, -100);
+        this.piece = this.clazz.make();
       } else {
         this.game.addParticle(new FloatText(
             'no $',
@@ -168,7 +172,7 @@ LevelEdit.prototype.listen = function(elem, clazz) {
   elem.addEventListener('mousemove', this, false);
   elem.addEventListener('click', this, false);
   this.clazz = clazz;
-  this.piece = new clazz(-100, -100);
+  this.piece = clazz.make();
 };
 
 LevelEdit.prototype.unlisten = function(elem) {
@@ -466,11 +470,22 @@ KbController.prototype.right = function() { return KB.keyDown(Keys.RIGHT); };
 KbController.prototype.jump = function() { return KB.keyDown('z'); };
 KbController.prototype.shoot = function() { return KB.keyDown('x'); };
 
-var Bullet = function(x, y, vx, opts) {
+var Bullet = function(x, y, facing, opts) {
+  opts = transformOpts(opts);
   var w = opts.w || 4;
   var h = opts.h || 4;
-  this.collider_ = Collider.fromCenter(x, y, w, h, vx, 0);
+  var vx = facing * (opts.vx || 160 * 1.5);
+  var vy = opts.vy || 0;
+  this.collider_ = Collider.fromCenter(x, y, w, h, vx, vy);
   this.collider_.ignore = opts.ignore;
+  this.life = opts.life || Infinity;
+};
+
+Bullet.prototype.tick = function(t) {
+  this.life -= t;
+  if (this.life < 0) {
+    this.dead = true;
+  }
 };
 
 Bullet.prototype.handleLevelCollide = function(collide) {
@@ -488,6 +503,7 @@ Bullet.prototype.render = function(renderer) {
 };
 
 var Actor = function(x, y, w, h, opt_opts) {
+  this.opts = transformOpts(opt_opts);
   this.collider_ = Collider.fromCenter(x, y, w, h, 0, 0);
   this.jumping = 0;
   this.falling = 1;
@@ -495,7 +511,6 @@ var Actor = function(x, y, w, h, opt_opts) {
   this.controller = new Controller();
   this.nextShot = 0;
 
-  this.opts = opt_opts || {};
   this.opts.shotDelay = this.opts.shotDelay || 0.2;
   this.maxSpeed = this.opts.maxSpeed || 80;
 };
@@ -535,11 +550,14 @@ Actor.prototype.tick = function(t) {
 
   if (this.controller.shoot() && this.nextShot < 0) {
     this.nextShot = this.opts.shotDelay;
-    ShootGame.GAME.addBullet(new Bullet(
-        this.collider_.cx(),
-        this.collider_.cy(),
-        this.facing * 160 * 1.5,
-        this.opts.bullet));
+    var num = this.opts.numBullets || 1;
+    for (; num >= 0; --num) {
+      ShootGame.GAME.addBullet(new Bullet(
+          this.collider_.cx(),
+          this.collider_.cy(),
+          this.facing,
+          this.opts.bullet));
+    }
   }
 };
 
@@ -578,7 +596,7 @@ Hero.prototype.render = function(renderer) {
 };
 
 var Mook = function(x, y, opt_opts) {
-  var opts = opt_opts || {};
+  var opts = transformOpts(opt_opts);
   opts.bullet = opts.bullet || {};
   opts.bullet.ignore = Ignore.MOOK | Ignore.BULLET;
   baseCtor(this, x, y, opts.w || 8, opts.h || 16, opts);
@@ -586,7 +604,43 @@ var Mook = function(x, y, opt_opts) {
   this.possessed = false;
 };
 inherit(Mook, Actor);
-Mook.price = 5;
+
+Mook.KNIFE = {
+  price: 3,
+  make: function() {
+    return new Mook(-100, -100, {
+      shotDelay: 0.2,
+      bullet: {
+        life: 0.1,
+        vx: 80,
+        w: 10,
+      },
+    });
+  },
+};
+Mook.GUN = {
+  price: 8,
+  make: function() {
+    return new Mook(-100, -100, {
+      shotDelay: 0.5,
+    });
+  },
+};
+Mook.SHOTGUN = {
+  price: 13,
+  make: function() {
+    return new Mook(-100, -100, {
+      shotDelay: 1,
+      numBullets: 5,
+      bullet: {
+        life: 0.4,
+        vx: partial(randFlt, 150, 180),
+        vy: partial(randFlt, -10, 10),
+        w: 10,
+      },
+    });
+  },
+};
 
 Mook.prototype.possess = function(doPossess) {
   if (doPossess == this.possessed) {
@@ -690,6 +744,7 @@ Explosion.prototype.render = function(renderer) {
 };
 
 var FloatText = function(text, x, y, opts) {
+  opts = transformOpts(opts);
   baseCtor(this, opts.t || 1);
   this.x = x;
   this.y = y;

@@ -7,6 +7,28 @@ function getUid(obj) {
   return obj[UID_PROP_NAME] || (obj[UID_PROP_NAME] = ++UID);
 };
 
+function transformOpts(opts) {
+  var isArray = function(o) {
+    return Object.prototype.toString.call(o) == '[object Array]';
+  };
+  var isFunction = function(o) {
+    return Object.prototype.toString.call(o) == '[object Function]';
+  };
+  opts = opts || {};
+  var nopts = {};
+  for (var optKey in opts) {
+    var optVal = opts[optKey];
+    if (isArray(optVal)) {
+      nopts[optKey] = pick(optVal);
+    } else if (isFunction(optVal)) {
+      nopts[optKey] = optVal();
+    } else {
+      nopts[optKey] = optVal;
+    }
+  }
+  return nopts;
+};
+
 function makeSet() {
   var set = {};
   for (var i = 0; i < arguments.length; ++i) {

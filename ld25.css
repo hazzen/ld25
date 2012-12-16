@@ -26,18 +26,21 @@ button {
 button:active,
 button.selected {
   border-style: inset;
-  background-image: -webkit-linear-gradient(top, #777, #988);
+  background-image: -webkit-linear-gradient(top, #666, #877);
   text-align: center;
 }
 
 .left {
   float: left;
+  margin: 5px;
 }
 
 .sub {
   float: left;
+  margin: 5px;
 }
 
 .funds {
   float: right;
+  margin: 5px;
 }
