@@ -56,8 +56,9 @@ var Ignore = {
 
 var BuildGame = function(owner) {
   this.owner = d3.select(owner);
-  this.day = 1;
+  this.day = 0;
   BuildGame.GAME = this;
+  this.levelOver();
 };
 
 BuildGame.prototype.makeHtml = function() {
@@ -141,9 +142,8 @@ BuildGame.prototype.makeHtml = function() {
 BuildGame.prototype.levelOver = function() {
   this.owner.selectAll('button').style('display', 'inherit');
   this.day++;
-  ShootGame.GAME.setLevel(Level.loadFromString(
-      Level.randomOfHeight(Math.min(4, this.day)),
-      WAREHOUSE_BLOCKS));
+  ShootGame.GAME.setLevel(
+      Level.randomOfHeight(Math.min(4, this.day), Levels.WAREHOUSE));
 };
 
 var LevelEdit = function(game) {
@@ -919,6 +919,13 @@ Block.RENDER_WALL = function(color) {
   };
 };
 
+var Levels = {
+  WAREHOUSE: 1,
+  SUBYARD: 2,
+  LAB: 3,
+  MOON: 4,
+};
+
 Block.RENDER_CRATE = function(hslColor, opt_a) {
   var a = opt_a || 1;
   var hsl = hslColor.copy();
@@ -1018,6 +1025,9 @@ var SUBYARD_BLOCKS = {
   '<': new Block(Block.RENDER_L, Block.COLLIDE_NONE),
   '^': new Block(Block.RENDER_U, Block.COLLIDE_NONE),
 };
+BLOCKS = {};
+BLOCKS[Levels.WAREHOUSE] = WAREHOUSE_BLOCKS;
+BLOCKS[Levels.SUBYARD] = SUBYARD_BLOCKS;
 
 for (var b in WAREHOUSE_BLOCKS) {
   WAREHOUSE_BLOCKS[b.charCodeAt(0)] = WAREHOUSE_BLOCKS[b];
@@ -1026,91 +1036,96 @@ for (var b in SUBYARD_BLOCKS) {
   SUBYARD_BLOCKS[b.charCodeAt(0)] = WAREHOUSE_BLOCKS[b];
 }
 
-var RIGHT_BLOCKS = [
-  [
-    'R----   ----   ----',
-    '                   ',
-    '                   ',
-    '>                  ',
-    '>^                o',
-    '>^2222      ^^22222',
-    '1111111111111111111',
+var DEFAULT_CHUNKS = {
+  right: [
+    [
+      'R----   ----   ----',
+      '                   ',
+      '                   ',
+      '>                  ',
+      '>^                o',
+      '>^2222      ^^22222',
+      '1111111111111111111',
+    ],
+    [
+      'R                21',
+      '--- ^--- ^---   <21',
+      '               <221',
+      '    221111111111111',
+      '    22             ',
+      '>   ##       ^222 o',
+      '1111111111111111111',
+    ],
   ],
-  [
-    'R                21',
-    '--- ^--- ^---   <21',
-    '               <221',
-    '    221111111111111',
-    '    22             ',
-    '>   ##       ^222 o',
-    '1111111111111111111',
+  rightDown: [
+    [
+      '  ---   ---   ---  ',
+      '                   ',
+      '                   ',
+      '                   ',
+      '                   ',
+      '                   ',
+      '11111111111111     ',
+    ],
+    [
+      '  ---   ---   ---  ',
+      '   2               ',
+      '   22 2            ',
+      '   22 2            ',
+      '^^^####            ',
+      '^^22222            ',
+      '11111111111111     ',
+    ],
   ],
-];
+  left: [
+    [
+      ' ----    ----   -- ',
+      '                  L',
+      '                   ',
+      '                   ',
+      '       22^^^    ^^ ',
+      'o     2222^^  22^^<',
+      '1111111111111111111',
+    ],
+    [
+      ' ----    ----   -- ',
+      '                  L',
+      '              <<   ',
+      '              2<   ',
+      '       22^^^  2^   ',
+      'o     2222^^  22^^<',
+      '1111111111111111111',
+    ],
+  ],
+  leftDown: [
+    [
+      '  ---   ---   ---  ',
+      '                   ',
+      '                   ',
+      '                   ',
+      '                   ',
+      '                   ',
+      '      1111111111111',
+    ],
+  ],
+};
 
-var RIGHT_DOWN_BLOCKS = [
-  [
-    '  ---   ---   ---  ',
-    '                   ',
-    '                   ',
-    '                   ',
-    '                   ',
-    '                   ',
-    '11111111111111     ',
-  ],
-  [
-    '  ---   ---   ---  ',
-    '   2               ',
-    '   22 2            ',
-    '   22 2            ',
-    '^^^####            ',
-    '^^22222            ',
-    '11111111111111     ',
-  ],
-];
+var SPECIAL_CHUNKS = {};
 
-var LEFT_BLOCKS = [
-  [
-    ' ----    ----   -- ',
-    '                  L',
-    '                   ',
-    '                   ',
-    '       22^^^    ^^ ',
-    'o     2222^^  22^^<',
-    '1111111111111111111',
-  ],
-  [
-    ' ----    ----   -- ',
-    '                  L',
-    '              <<   ',
-    '              2<   ',
-    '       22^^^  2^   ',
-    'o     2222^^  22^^<',
-    '1111111111111111111',
-  ],
-];
-
-var LEFT_DOWN_BLOCKS = [
-  [
-    '  ---   ---   ---  ',
-    '                   ',
-    '                   ',
-    '                   ',
-    '                   ',
-    '                   ',
-    '      1111111111111',
-  ],
-];
-
-Level.randomOfHeight = function(floors) {
+Level.randomOfHeight = function(floors, kind) {
   var dir = 1;
   var roof = '1111111111111111111111111111111111111111';
   var lines = [roof];
   var first = true;
   for (; floors > 0; --floors) {
-    var norm = dir > 0 ? RIGHT_BLOCKS : LEFT_BLOCKS;
-    var down = dir > 0 ? RIGHT_DOWN_BLOCKS : LEFT_DOWN_BLOCKS;
-    var leftHalf = pick(norm);
-    var rightHalf = pick(floors == 1 ? norm : down);
+    var norm = dir > 0 ? 'right' : 'left';
+    var down = dir > 0 ? 'rightDown' : 'leftDown';
+    normBlocks = DEFAULT_CHUNKS[norm].concat(
+      SPECIAL_CHUNKS[kind] && SPECIAL_CHUNKS[kind][norm] || []);
+    var downBlocks = DEFAULT_CHUNKS[down].concat(
+      SPECIAL_CHUNKS[kind] && SPECIAL_CHUNKS[kind][down] || []);
+    var leftHalf = pick(normBlocks);
+    var rightHalf = pick(floors == 1 ? normBlocks : downBlocks);
     if (!first) {
       leftHalf = leftHalf.map(function(f) {
         return f.replace(/L/g, '<').replace(/R/g, '>');
@@ -1139,7 +1154,9 @@ Level.randomOfHeight = function(floors) {
     dir *= -1;
     first = false;
   }
-  return lines.join('\n') + '\n';
+  var str = lines.join('\n') + '\n';
+
+  return Level.loadFromString(str, BLOCKS[kind]);
 };
 
 var LEVEL_1 = (
