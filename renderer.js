@@ -101,6 +101,7 @@ Renderer.prototype.render = function(cb) {
   this.context_.save();
   this.context_.translate(-Math.round(this.xOff_),
                           -Math.round(this.yOff_));
+  this.context_.scale(1.25, 1.25);
 
   cb(this);
 

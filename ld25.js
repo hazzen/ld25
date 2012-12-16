@@ -34,7 +34,7 @@ Villain.prototype.updateUi = function() {
     ['evilness', this.evilness],
   ]);
   var txt = function(d) {
-    return d[0] + ': ' + d[1];
+    return d[0] + ': ' + d[1].toFixed(2);
   };
   disps.enter().append('div')
       .attr('class', 'disp')
@@ -67,6 +67,7 @@ BuildGame.prototype.makeHtml = function() {
     {name: 'thug [knife]', clazz: Mook.KNIFE},
     {name: 'thug [gun]', clazz: Mook.GUN},
     {name: 'thug [shotgun]', clazz: Mook.SHOTGUN},
+    {name: 'turret [bullets]', clazz: Mook.TURRET},
   ];
   var fortifyClick = function(o) {
     var bs = owner.select('.sub').selectAll('button.subAction')
@@ -152,11 +153,15 @@ var LevelEdit = function(game) {
 LevelEdit.prototype.handleEvent = function(e) {
   if (!this.game.level_) return;
   if (!this.piece) return;
-  this.bx = Math.floor(e.layerX / Block.SIZE);
-  this.by = Math.floor(e.layerY / Block.SIZE);
+  this.bx = e.layerX / (1.25 * Block.SIZE);
+  this.by = e.layerY / (1.25 * Block.SIZE);
+  var facing = this.bx % 1 > 0.5 ? 1 : -1;
+  this.bx = Math.floor(this.bx);
+  this.by = Math.floor(this.by);
   var w = this.piece.collider_.w();
   var h = this.piece.collider_.h();
   if (e.type == 'mousemove') {
+    this.piece.facing = facing;
     this.piece.collider_.aabb.setXY(
       this.bx * Block.SIZE + (Block.SIZE - w) / 2,
       this.by * Block.SIZE + (Block.SIZE - h) / 2);
@@ -251,10 +256,11 @@ ShootGame.addEnt = function(ents, ent) {
     var curEnt = ents[i];
     if (!curEnt || curEnt.dead) {
       ents[i] = ent;
-      return;
+      return i;
     }
   }
   ents.push(ent);
+  return ents.length - 1;
 };
 
 ShootGame.prototype.play = function() {
@@ -273,7 +279,11 @@ ShootGame.prototype.addEnt = function(ent) {
 
 ShootGame.prototype.addEnemy = function(ent) {
   ShootGame.addEnt(this.ents, ent);
-  ShootGame.addEnt(this.enemies, ent);
+  var ei = ShootGame.addEnt(this.enemies, ent);
+  var possessed = this.enemies[this.possessI];
+  if (!possessed || possessed.dead) {
+    this.possess(ei);
+  }
 };
 
 ShootGame.prototype.addParticle = function(ent) {
@@ -342,13 +352,17 @@ ShootGame.prototype.nextPossess = function(opt_dir) {
     }
   }
   if (foundI != this.possessI && foundI >= 0) {
-    if (this.possessI >= 0 && this.possessI < this.enemies.length) {
-      this.enemies[this.possessI].possess(false);
-    }
-    this.enemies[foundI].possess(true);
-    this.possessI = foundI;
+    this.possess(foundI);
   }
 };
+ShootGame.prototype.possess = function(index) {
+  if (this.possessI >= 0 && this.possessI < this.enemies.length) {
+    this.enemies[this.possessI].possess(false);
+  }
+  this.enemies[index].possess(true);
+  this.possessI = index;
+};
+
 ShootGame.prototype.tick = function(t) {
   this.t += t;
   this.t %= 1000;
@@ -415,9 +429,10 @@ ShootGame.prototype.tick = function(t) {
       if (bullet.collider_.lastCollision) {
         bullet.dead = true;
         if (bullet.collider_.ignore & Ignore.MOOK) {
-          this.villain_.spend(-1);
+          var amount = bullet.collider_.damage || 1;
+          this.villain_.spend(-amount);
           this.addParticle(new FloatText(
-              '+$1',
+              '+$' + amount.toFixed(2),
               bullet.collider_.cx(), bullet.collider_.y(),
               {dx: 5, dy: -10, color: '#34ab1c'}));
         }
@@ -427,20 +442,21 @@ ShootGame.prototype.tick = function(t) {
   this.enemies.forEach(function(enemy) {
     if (!enemy.dead) {
       if (enemy.collider_.lastCollision) {
-        enemy.dead = true;
-        this.addParticle(new DeathFall(enemy, '#f56f58',
-            sgn(enemy.collider_.lastCollision.object.vx)));
-        this.ticking = false;
-        var ft = new FloatText(
-          [pick(FIRSTS), pick(LASTS), '-', pick(DESCRIPTS)].join(' '),
-          enemy.collider_.cx(), enemy.collider_.y() - 5,
-          {dy: -10, color: '#ccc', font: '12px Helvetica', t: 1.2});
-        var ot = bind(ft.tick, ft);
-        ft.tick = function(t) {
-          ot(t);
-          ShootGame.GAME.ticking = this.dead;
-        };
-        this.addParticle(ft);
+        if (enemy.hitBy(enemy.collider_.lastCollision.damage || 1)) {
+          this.addParticle(new DeathFall(enemy, '#f56f58',
+              sgn(enemy.collider_.lastCollision.object.vx)));
+          this.ticking = false;
+          var ft = new FloatText(
+            [pick(FIRSTS), pick(LASTS), '-', pick(DESCRIPTS)].join(' '),
+            enemy.collider_.cx(), enemy.collider_.y() - 5,
+            {dy: -10, color: '#ccc', font: '12px Helvetica', t: 1.2});
+          var ot = bind(ft.tick, ft);
+          ft.tick = function(t) {
+            ot(t);
+            ShootGame.GAME.ticking = this.dead;
+          };
+          this.addParticle(ft);
+        }
       }
     }
   }, this);
@@ -526,6 +542,7 @@ var Bullet = function(x, y, facing, opts) {
   var vy = opts.vy || 0;
   this.collider_ = Collider.fromCenter(x, y, w, h, vx, vy);
   this.collider_.ignore = opts.ignore;
+  this.collider_.damage = opts.damage || 1;
   this.life = opts.life || Infinity;
 };
 
@@ -552,6 +569,7 @@ Bullet.prototype.render = function(renderer) {
 
 var Actor = function(x, y, w, h, opt_opts) {
   this.opts = transformOpts(opt_opts);
+  this.life = this.opts.life || 1;
   this.collider_ = Collider.fromCenter(x, y, w, h, 0, 0);
   this.jumping = 0;
   this.falling = 1;
@@ -560,7 +578,16 @@ var Actor = function(x, y, w, h, opt_opts) {
   this.nextShot = 0;
 
   this.opts.shotDelay = this.opts.shotDelay || 0.2;
-  this.maxSpeed = this.opts.maxSpeed || 80;
+  this.maxSpeed = (this.opts.maxSpeed == null) ? 80 : this.opts.maxSpeed;
+  this.jumpDelta = (this.opts.jumpDelta == null) ? 100 : this.opts.jumpDelta;
+};
+
+Actor.prototype.hitBy = function(damage) {
+  this.life -= damage;
+  if (this.life <= 0) {
+    this.dead = true;
+  }
+  return this.dead;
 };
 
 Actor.prototype.tick = function(t) {
@@ -586,7 +613,7 @@ Actor.prototype.tick = function(t) {
   if (this.controller.jump()) {
     if (!this.jumping) {
       this.jumping = true;
-      this.collider_.vy = -100;
+      this.collider_.vy = -this.jumpDelta;
     }
   }
   if (this.falling) {
@@ -596,7 +623,7 @@ Actor.prototype.tick = function(t) {
   if (this.controller.shoot() && this.nextShot < 0) {
     this.nextShot = this.opts.shotDelay;
     var num = this.opts.numBullets || 1;
-    for (; num >= 0; --num) {
+    for (; num > 0; --num) {
       ShootGame.GAME.addBullet(new Bullet(
           this.collider_.cx(),
           this.collider_.cy(),
@@ -658,7 +685,8 @@ Mook.KNIFE = {
       shotDelay: 0.2,
       bullet: {
         life: 0.1,
-        vx: 80,
+        damage: 3,
+        vx: 180,
         w: 10,
       },
     });
@@ -681,9 +709,31 @@ Mook.SHOTGUN = {
       bullet: {
         vx: partial(randFlt, 150, 180),
         vy: partial(randFlt, -10, 10),
+        damage: 0.5,
         w: 10,
       },
     });
+  },
+};
+Mook.TURRET = {
+  price: 8,
+  make: function() {
+    var turret = new Turret(-100, -100, {
+      maxSpeed: 0,
+      jumpDelta: 0,
+      w: 14,
+      h: 16,
+      shotDelay: 0.5,
+      bullet: {
+        vx: partial(randFlt, 150, 180),
+        vy: partial(randFlt, -10, 10),
+        damage: 0.5,
+        w: 10,
+        h: 2,
+      },
+    });
+    turret.controller.shoot = function() { return true; };
+    return turret;
   },
 };
 
@@ -709,6 +759,37 @@ Mook.prototype.render = function(renderer) {
   }
   ctx.fillRect(this.collider_.x(), this.collider_.y(),
                this.collider_.w(), this.collider_.h());
+
+  ctx.fillStyle = '#888';
+  ctx.fillRect(this.collider_.cx(), this.collider_.cy() - 2,
+               this.collider_.w() * this.facing, 4);
+};
+
+var Turret = function(x, y, opt_opts) {
+  var opts = opt_opts || {};
+  baseCtor(this, x, y, opt_opts);
+  this.aim = 0;
+};
+inherit(Turret, Mook);
+
+Turret.prototype.render = function(renderer) {
+  var ctx = renderer.context();
+  if (this.possessed) {
+    ctx.fillStyle = '#f9a494';
+  } else {
+    ctx.fillStyle = '#f56f58';
+  }
+  ctx.fillRect(this.collider_.x(), this.collider_.y(),
+               this.collider_.w(), this.collider_.h() - 4);
+
+  ctx.fillStyle = '#888';
+  ctx.fillRect(this.collider_.cx(), this.collider_.cy() - 2,
+               this.collider_.w() * this.facing, 4);
+
+  ctx.fillRect(this.collider_.cx() - 6, this.collider_.cy(),
+               2, this.collider_.h() / 2);
+  ctx.fillRect(this.collider_.cx() + 4, this.collider_.cy(),
+               2, this.collider_.h() / 2);
 };
 
 
@@ -915,15 +996,35 @@ var WAREHOUSE_BLOCKS = {
   '<': new Block(Block.RENDER_L, Block.COLLIDE_NONE),
   '^': new Block(Block.RENDER_U, Block.COLLIDE_NONE),
 };
+var SUBYARD_BLOCKS = {
+  '1': new Block(Block.RENDER_WALL('#888'), Block.COLLIDE_ALL),
+
+  '#': new Block(Block.RENDER_CRATE(new Hsl(21 / 255, 0.14, 0.43), 0.5),
+                 Block.COLLIDE_NONE),
+
+  '2': new Block(Block.RENDER_CRATE(new Hsl(21 / 255, 0.14, 0.43)),
+                 Block.COLLIDE_ALL),
+
+  '-': new Block(Block.RENDER_LIGHT, Block.COLLIDE_TOP),
+
+  'o': new Block(function(renderer, x, y) {
+         var ctx = renderer.context();
+         ctx.fillStyle = '#1f1';
+         ctx.fillRect(x, y, Block.SIZE, Block.SIZE);
+       },
+       Block.COLLIDE_NONE),
+
+  '>': new Block(Block.RENDER_R, Block.COLLIDE_NONE),
+  '<': new Block(Block.RENDER_L, Block.COLLIDE_NONE),
+  '^': new Block(Block.RENDER_U, Block.COLLIDE_NONE),
+};
 
 for (var b in WAREHOUSE_BLOCKS) {
   WAREHOUSE_BLOCKS[b.charCodeAt(0)] = WAREHOUSE_BLOCKS[b];
 }
-/*
 for (var b in SUBYARD_BLOCKS) {
   SUBYARD_BLOCKS[b.charCodeAt(0)] = WAREHOUSE_BLOCKS[b];
 }
-*/
 
 var RIGHT_BLOCKS = [
   [

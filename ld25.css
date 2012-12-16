@@ -5,7 +5,7 @@
 #game,
 #shoot,
 #build {
-  width: 640;
+  width: 800;
 }
 
 body {
@@ -13,7 +13,7 @@ body {
 }
 
 button {
-  width: 250px;
+  width: 200px;
   border: 1px outset #666;
   font-family: monospace;
   display: block;
@@ -43,4 +43,8 @@ button.selected {
 .funds {
   float: right;
   margin: 5px;
+}
+
+.funds .disp {
+  font-family: monospace;
 }

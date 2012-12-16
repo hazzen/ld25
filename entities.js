@@ -13,7 +13,7 @@ Collider = function(aabb, vx, vy) {
 };
 
 Collider.fromCenter = function(x, y, w, h, vx, vy) {
-  var aabb = new geom.AABB(x - w / 2, y - w / 2, w, h);
+  var aabb = new geom.AABB(x - w / 2, y - h / 2, w, h);
   return new Collider(aabb, vx, vy);
 };
 
