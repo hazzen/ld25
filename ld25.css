@@ -1,5 +1,5 @@
 #game {
-  margin: 0 auto;
+  margin: 10px auto;
 }
 
 #game,
@@ -10,6 +10,7 @@
 
 body {
   background: #666;
+  padding: 10px;
 }
 
 button {
@@ -51,4 +52,24 @@ button.selected {
 .funds .disp {
   font-family: monospace;
   text-align: right;
+}
+
+.funds .disp.warn {
+  color: #800;
+}
+
+#tut {
+  width: 800px;
+  margin: 10px auto;
+  background: #a98;
+  border: 1px solid #a98;
+  border-radius: 10px;
+  padding: 5px;
+  clear: both;
+}
+#tut code {
+  background: #a99;
+  padding: 0 2px;
+  border: 1px solid #666;
+  border-radius: 5px;
 }

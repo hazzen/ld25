@@ -54,6 +54,7 @@ var Villain = function(ui) {
 
 Villain.prototype.updateUi = function() {
   var lairs = {};
+  var warn = false;
   for (var i = 0; i < this.props.length; ++i) {
     lairs[this.props[i]] = (lairs[this.props[i]] || 0) + 1;
   }
@@ -63,10 +64,14 @@ Villain.prototype.updateUi = function() {
     lairStr.push(amt + ' ' + kind + (amt == 1 ? '' : 's'));
   }
   lairStr = lairStr.join(', ');
+  if (!lairStr) {
+    lairStr = 'no more real estate! buy some or lose!';
+    warn = true;
+  }
   var disps = this.ui.selectAll('div.disp').data([
     ['funds', this.funds.toFixed(2)],
     ['evilness', this.evilness],
-    ['evil lairs', lairStr],
+    ['evil lairs', lairStr, warn],
   ]);
   var txt = function(d) {
     return d[0] + ': ' + d[1];
@@ -75,6 +80,7 @@ Villain.prototype.updateUi = function() {
       .attr('class', 'disp')
       .text(txt);
   disps
+      .classed('warn', function(d) { return !!d[2]; })
       .text(txt);
 };
 
@@ -468,7 +474,7 @@ ShootGame.addEnt = function(ents, ent) {
 ShootGame.prototype.play = function() {
   this.levelEdit_.unlisten(RENDERER.elem());
   this.renderLevel = true;
-  document.getElementById('shoot').focus();
+  document.getElementById('game').focus();
   this.hero_.dead = false;
   this.ticking = true;
 };
@@ -591,7 +597,7 @@ ShootGame.prototype.tick = function(t) {
   this.hero_.handleLevelCollide(collide);
   var heroBlock = this.level_.blockAt(
     this.hero_.collider_.cx(), this.hero_.collider_.cy());
-  if (KB.keyPressed('k') || (heroBlock && heroBlock == 'o' && !this.hero_.dead)) {
+  if (/*KB.keyPressed('k') ||*/ (heroBlock && heroBlock == 'o' && !this.hero_.dead)) {
     this.hero_.dead = true;
     var cx = this.hero_.collider_.cx();
     var cy = this.hero_.collider_.cy();

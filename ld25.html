@@ -23,6 +23,22 @@
         </div>
       </div>
     </div>
+    <div id='tut'>
+      So, yeah. An not-balanced LD25 submission. Cool.<br>
+      I was never really feeling the theme. I also bit off waaaaay more than
+      I could chew in the time period given the limitations. But, what we have
+      here is a start.<br><br>
+      You play as a villain, biding his time, threatening the world, buying
+      cool properties, and filling them with henchmen. Each day, the hero
+      invades one of your properties and blows it up. Each day, you buy some
+      expendable henchmen to put in the buildings and die. But you get a little
+      bit of money for every bullet that hits the hero (he can't die, of course).
+      <br><br>
+      Once you let the hero invade the lair, you can control soldiers. Use
+      <code>TAB</code> to switch, <code>Z</code> to jump, <code>X</code> to shoot,
+      and <code>LEFT</code>/<code>RIGHT</code> to move. Make sure to threaten
+      the world every day, lest you run out of funds!
+    </div>
 
     <script type="text/javascript">
       DEBUG = false;
@@ -44,12 +60,14 @@
       var gameStruct = {
         elem: gameElem,
         tick: function(t) {
+          /*
           if (KB.keyPressed('m')) {
             shootGame.villain_.spend(-10000);
           }
           if (KB.keyPressed('h')) {
             stepping = !stepping;
           }
+          */
           if (stepping || KB.keyPressed('n')) {
             shootGame.tick(t);
           }
