@@ -733,8 +733,8 @@ MookController.prototype.tick = function(t) {
         this.dojump = true;
         this.doshoot = false;
       } else {
-        this.doleft = false;
-        this.doright = false;
+        this.doleft = hx < mx;
+        this.doright = !this.doleft;
         this.dojump = false;
         this.doshoot = true;
       }
@@ -855,8 +855,8 @@ Actor.prototype.tick = function(t) {
   }
   if (Math.abs(this.collider_.vx) > this.maxSpeed) {
     this.collider_.vx = sgn(this.collider_.vx) * this.maxSpeed;
-  } else if (Math.abs(this.collider_.vx) > 0.1 * this.maxSpeed) {
-    this.collider_.vx -= sgn(this.collider_.vx) * this.maxSpeed * 0.05 * t;
+  } else if (Math.abs(this.collider_.vx) > t * 0.5 * this.maxSpeed) {
+    this.collider_.vx -= sgn(this.collider_.vx) * this.maxSpeed * 0.5 * t;
   } else if (!down) {
     this.collider_.vx = 0;
   }
@@ -940,6 +940,7 @@ Mook.KNIFE = {
       bullet: {
         life: 0.1,
         damage: 5,
+        maxSpeed: 80,
         vx: 180,
         w: 10,
       },
@@ -952,6 +953,7 @@ Mook.GUN = {
     return new Mook(-100, -100, {
       shotDelay: 1,
       damage: 4,
+      maxSpeed: 30,
     });
   },
 };
@@ -961,6 +963,7 @@ Mook.SHOTGUN = {
     return new Mook(-100, -100, {
       shotDelay: 1,
       numBullets: 5,
+      maxSpeed: 30,
       bullet: {
         vx: partial(randFlt, 150, 180),
         vy: partial(randFlt, -10, 10),
@@ -1000,9 +1003,12 @@ Mook.prototype.possess = function(doPossess) {
   this.possessed = doPossess;
   if (this.possessed) {
     this.oldController = this.controller;
+    this.oldSpeed = this.maxSpeed;
     this.controller = new KbController();
+    this.maxSpeed = this.oldSpeed == 0 ? 0 : 80;
   } else {
     this.controller = this.oldController;
+    this.maxSpeed = this.oldSpeed;
   }
 };
 
