@@ -578,6 +578,33 @@ Controller.prototype.right = function() { return false; }
 Controller.prototype.jump = function() { return false; }
 Controller.prototype.shoot = function() { return false; }
 
+var MookController = function(actor) {
+  baseCtor(this);
+  this.actor = actor;
+  this.offset = randFlt(0.1, 0.2);
+};
+inherit(MookController, Controller);
+MookController.prototype.tick = function(t) {
+  this.offset -= t;
+  if (this.offset < 0) {
+    this.offset += 0.2;
+    var my = this.actor.collider_.cy();
+    var hy = ShootGame.GAME.hero_.collider_.cy();
+    if (Level.whichFloor(my) <= Level.whichFloor(hy)) {
+      this.doleft = this.actor.facing < 0;
+      this.doright = this.actor.facing > 0;
+      this.dojump = my > hy;
+      this.doshoot = true;
+    } else {
+      this.doleft = this.doright = this.dojump = this.doshoot = false;
+    }
+  }
+};
+MookController.prototype.left = function() { return this.doleft; }
+MookController.prototype.right = function() { return this.doright; }
+MookController.prototype.jump = function() { return this.dojump; }
+MookController.prototype.shoot = function() { return this.doshoot; }
+
 var AiController = function(actor) {
   baseCtor(this);
   this.actor = actor;
@@ -658,7 +685,7 @@ var Actor = function(x, y, w, h, opt_opts) {
 
   this.opts.shotDelay = this.opts.shotDelay || 0.2;
   this.maxSpeed = (this.opts.maxSpeed == null) ? 80 : this.opts.maxSpeed;
-  this.jumpDelta = (this.opts.jumpDelta == null) ? 100 : this.opts.jumpDelta;
+  this.jumpDelta = (this.opts.jumpDelta == null) ? 110 : this.opts.jumpDelta;
 };
 
 Actor.prototype.hitBy = function(damage) {
@@ -754,6 +781,7 @@ var Mook = function(x, y, opt_opts) {
   baseCtor(this, x, y, opts.w || 8, opts.h || 16, opts);
   this.collider_.ignore = Ignore.MOOK;
   this.possessed = false;
+  this.controller = new MookController(this);
 };
 inherit(Mook, Actor);
 
@@ -1245,8 +1273,8 @@ var DEFAULT_CHUNKS = {
       '   2               ',
       '   22 2            ',
       '   22 2            ',
-      '^^^####            ',
-      '^^22222           o',
+      ' ^^####            ',
+      'R^22222           o',
       '11111111111111ddddd',
     ],
   ],
@@ -1281,23 +1309,9 @@ var DEFAULT_CHUNKS = {
   ],
 };
 
-SUBYARD_CHUNKS = {
-  left: [
-    [
-      '          ####     ',
-      '          ####     ',
-      '     ^^ <<####<    ',
-      '   1>^^11111111    ',
-      '   11 ---    --    ',
-      'o  11^            L',
-      'ddd1111111111111111',
-    ],
-  ],
-};
-
-LAB_CHUNKS = {
+SPECIAL_CHUNKS = {
   right: [
-    [
+    {levels: [Levels.LAB], d: [
       '                   ',
       '                   ',
       '                   ',
@@ -1305,8 +1319,8 @@ LAB_CHUNKS = {
       '  *     *    * *   ',
       'R^_   ^__   ^___  o',
       '1111111111111111ddd',
-    ],
-    [
+    ]},
+    {levels: [Levels.LAB], d: [
       'R                 2',
       '11111111111  *  *<2',
       '             _  _<2',
@@ -1314,10 +1328,37 @@ LAB_CHUNKS = {
       '  *     *    * *   ',
       '>^_   ^__   ^___  o',
       '1111111111111111ddd',
-    ],
+    ]},
+    {levels: [Levels.MOON], d: [
+      '                   ',
+      'R  ^      ^        ',
+      '1111 |^11111 |     ',
+      '   -----   -----   ',
+      '                   ',
+      '>        o         ',
+      '11111111111111ddddd',
+    ]},
+    {levels: [Levels.MOON], d: [
+      'R ---   ---   ---  ',
+      '   2               ',
+      '   22 2            ',
+      '>  22 2     22     ',
+      '^^^####    222     ',
+      '^^22222  > ###    o',
+      '11111111111111ddddd',
+    ]},
   ],
   left: [
-    [
+    {levels: [Levels.SUBYARD, Levels.MOON], d: [
+      '          ####     ',
+      '          ####     ',
+      '     ^^ <<####<    ',
+      '   1>^^11111111    ',
+      '   11 ---    --    ',
+      'o  11^            L',
+      'ddd1111111111111111',
+    ]},
+    {levels: [Levels.LAB], d: [
       '                   ',
       '                   ',
       '                   ',
@@ -1325,8 +1366,8 @@ LAB_CHUNKS = {
       '  * *         **   ',
       'o _ _^ _  ^   __^ L',
       'dd11111111111111111',
-    ],
-    [
+    ]},
+    {levels: [Levels.LAB], d: [
       'o          < 11L   ',
       'd1111111111<<11>   ',
       'd         > ^11>   ',
@@ -1334,37 +1375,40 @@ LAB_CHUNKS = {
       'd1^--   *    * *  <',
       'd111^ <__ <  ___  <',
       'd111111111111111111',
-    ],
+    ]},
   ],
 };
 
-MOON_CHUNKS = {
-  right: [
-    [
-      '                   ',
-      '                   ',
-      '1111 | 11111 |     ',
-      '   -----   -----   ',
-      '                   ',
-      '                   ',
-      '11111111111111ddddd',
-    ],
-    [
-      '  ---   ---   ---  ',
-      '   2               ',
-      '   22 2            ',
-      '   22 2            ',
-      '^^^####            ',
-      '^^22222            ',
-      '11111111111111ddddd',
-    ],
-  ],
-};
-
-var SPECIAL_CHUNKS = {};
-SPECIAL_CHUNKS[Levels.SUBYARD] = SUBYARD_CHUNKS;
-SPECIAL_CHUNKS[Levels.LAB] = LAB_CHUNKS;
-SPECIAL_CHUNKS[Levels.MOON] = MOON_CHUNKS;
+(function() {
+  var verifyChunk = function(chunk, entrance) {
+    var patterns = {'o': 0, 'd': 1};
+    patterns[entrance] = 0;
+    for (var line = 0; line < chunk.length; ++line) {
+      for (var p in patterns) {
+        if (chunk[line].indexOf(p) != -1) {
+          patterns[p] += 1;
+        }
+      }
+    }
+    for (var p in patterns) {
+      if (patterns[p] == 0) {
+        throw Error('bad ' + p);
+      }
+    }
+  };
+  for (var kind in DEFAULT_CHUNKS) {
+    var chunks = DEFAULT_CHUNKS[kind];
+    for (var i = 0; i < chunks.length; ++i) {
+      verifyChunk(chunks[i], kind == 'right' ? 'R' : 'L');
+    }
+  }
+  for (var kind in SPECIAL_CHUNKS) {
+    var chunks = SPECIAL_CHUNKS[kind];
+    for (var i = 0; i < chunks.length; ++i) {
+      verifyChunk(chunks[i].d, kind == 'right' ? 'R' : 'L');
+    }
+  }
+})();
 
 Level.randomOfHeight = function(floors, kind) {
   var dir = 1;
@@ -1373,8 +1417,11 @@ Level.randomOfHeight = function(floors, kind) {
   var first = true;
   for (; floors > 0; --floors) {
     var norm = dir > 0 ? 'right' : 'left';
-    blocks = DEFAULT_CHUNKS[norm].concat(
-      SPECIAL_CHUNKS[kind] && SPECIAL_CHUNKS[kind][norm] || []);
+    var blocks = DEFAULT_CHUNKS[norm];
+    var sb = SPECIAL_CHUNKS[norm]
+        .filter(function(d) { return d.levels.indexOf(kind) != -1; })
+        .map(function(d) { return d.d; });
+    blocks = blocks.concat(sb);
     var leftHalf = pick(blocks);
     var rightHalf = pick(blocks);
     if (!first) {
@@ -1414,26 +1461,16 @@ Level.randomOfHeight = function(floors, kind) {
   return Level.loadFromString(str, BLOCKS[kind]);
 };
 
-var LEVEL_1 = (
-  '1111111111111111111111111111111111111111\n' +
-  '1 ----    ----    ----    ----    ---- 1\n' +
-  '1                                      1\n' +
-  '1                                      1\n' +
-  '1                                      1\n' +
-  '1                                      1\n' +
-  '1>^2222      ^^22222                   1\n' +
-  '11111111111111111111111111111111       1\n' +
-  '1 ----    ----    ----    ----         1\n' +
-  '1                                     <1\n' +
-  '1                                     <1\n' +
-  '1                                     <1\n' +
-  '1                                     <1\n' +
-  '1      2222^^      22222^^      <<<<<<<1\n' +
-  '1111111111111111111111111111111111111111\n');
-
 function Level(blocks, blockMap) {
   this.blocks_ = blocks;
   this.blockMap_ = blockMap;
+};
+
+Level.whichFloor = function(y) {
+  var BLOCKS_PER_FLOOR = 7;
+  var ROOF_H = 1;
+  var by = y / Block.SIZE - ROOF_H;
+  return Math.floor(by / BLOCKS_PER_FLOOR);
 };
 
 Level.loadFromString = function(str, blockMap) {
