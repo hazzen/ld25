@@ -110,9 +110,17 @@ var Ignore = {
 
 var BuildGame = function(owner) {
   this.owner = d3.select(owner);
-  this.day = 0;
   BuildGame.GAME = this;
+  this.newGame();
+};
+
+BuildGame.prototype.newGame = function() {
+  this.day = 0;
   this.levelOver();
+  ShootGame.GAME.addParticle(new FloatText(
+      'bad budes v. bad dude',
+      320, 240,
+      {t: 5, color: '#fff', font: '26 Helvetica'}));
 };
 
 BuildGame.prototype.makeHtml = function() {
@@ -292,10 +300,13 @@ BuildGame.prototype.levelOver = function() {
     for (var i = 8; i < this.day; i += 0.4) numFloors.push(4);
     ShootGame.GAME.setLevel(
         Level.randomOfHeight(pick(numFloors), nextKind));
-    ShootGame.GAME.addParticle(new FloatText(
+    var p = new FloatText(
         'DAY ' + this.day,
         320, 50,
-        {t: 5, dy: -10, color: '#fff', font: '18px Helvetica'}));
+        {t: 5, dy: -10, color: '#fff', font: '18px Helvetica'});
+    var ot = bind(p.tick, p);
+    p.tick = function(t) { ot(t); if (this.dead) ShootGame.GAME.renderLevel = true; };
+    ShootGame.GAME.addParticle(p);
     ShootGame.GAME.addParticle(new FloatText(
         'bad-enough dudes invading our',
         320, 70,
@@ -307,7 +318,26 @@ BuildGame.prototype.levelOver = function() {
     ShootGame.GAME.hero_.maxSpeed = 70 + 2 * this.day;
     ShootGame.GAME.hero_.opts.shotDelay = Math.max(0.5, 2 - this.day * 0.2);
   } else {
-    alert('LOSER!');
+    ShootGame.GAME.addParticle(new FloatText(
+        'snap! you\'ve run out of lairs to conveniently leave poorly defended',
+        320, 50,
+        {t: Infinity, color: '#fff', font: '18px Helvetica'}));
+    ShootGame.GAME.addParticle(new FloatText(
+        'oh well, game over i guess',
+        320, 80,
+        {t: Infinity, color: '#fff', font: '14px Helvetica'}));
+    ShootGame.GAME.addParticle(new FloatText(
+        'you can press "n" to start again',
+        320, 100,
+        {t: Infinity, color: '#fff', font: '14px Helvetica'}));
+    var p = new Particle(Infinity);
+    p.tick = function() {
+      if (KB.keyPressed('n')) {
+        shootGame.newGame();
+        buildGame.newGame();
+      }
+    };
+    ShootGame.GAME.addParticle(p);
   }
 };
 
@@ -406,15 +436,19 @@ LevelEdit.prototype.render = function(renderer) {
 };
 
 var ShootGame = function() {
+  ShootGame.GAME = this;
+  this.newGame();
+  this.levelEdit_ = new LevelEdit(this);
+};
+
+ShootGame.prototype.newGame = function() {
   this.renderLevel = false;
   this.ticking = false;
   this.villain_ = new Villain(d3.select('#build .funds'));
   this.hero_ = new Hero(Block.SIZE + 4, Block.SIZE + 4);
-  this.levelEdit_ = new LevelEdit(this);
   this.setLevel(null);
   this.t = 0;
 
-  ShootGame.GAME = this;
 };
 ShootGame.GAME = null;
 
@@ -1025,7 +1059,7 @@ var Particle = function(life) {
 };
 
 Particle.prototype.alpha = function() {
-  return this.life / this.startLife;
+  return this.life == Infinity ? 1 : this.life / this.startLife;
 };
 
 Particle.prototype.tick = function(t) {
