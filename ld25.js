@@ -20,6 +20,29 @@ var DESCRIPTS = [
   'horse jockey', 'poodle breeder', 'doctor', 'lawyer', 'plebe',
   'nincompoop', 'doofus',
 ];
+var TAUNTS = [
+  'yippee ki yay!', 'go ahead, make my day', 'time to die',
+  'say hello to my little friend',
+];
+var MINOR_THREATS = [
+  'threaten to kick a puppy', 'take candy from a baby', 'fart in an elevator',
+  'talk really loud on a cellphone in line', 'swear on national televsion',
+];
+var MID_THREATS = [
+  'actually kick a puppy', 'show nudity on national televesion',
+  'interrupt taylor swift', 'insult the pope',
+];
+var BIG_THREATS = [
+  'interrupt kanye', 'hijack an airplane', 'take a building hostage',
+  'hijack a bus', 'sell sub-prime mortages', 'poison the well',
+  'expose national secrets', 'take down youtube',
+];
+var MEGA_THREATS = [
+  'start a war between canada and the us', 'take a city hostage',
+  'be, like, really evil', 'blow up a space station',
+  'use a space laser', 'bring back parachute pants',
+  'air another season of survivor',
+];
 
 var Villain = function(ui) {
   this.funds = 50;
@@ -152,6 +175,9 @@ BuildGame.prototype.makeHtml = function() {
             '-$' + ld.price,
             320, 450,
             {dy: -10, color: '#34ab1c'}));
+        ld.price = Math.ceil(ld.price * 1.1);
+        bs
+            .text(function(d) { return d + ' $' + Levels.Data[d].price; });
       } else {
         ShootGame.GAME.addParticle(new FloatText(
             'no $',
@@ -159,6 +185,37 @@ BuildGame.prototype.makeHtml = function() {
             {dy: -10, color: '#ab1c1c'}));
       }
     }, this));
+  }, this);
+
+  var demandClick = bind(function(o) {
+    var bs = owner.select('.sub').selectAll('button.subAction')
+        .data(this.demands);
+    bs.exit().remove();
+    bs.enter().append('button')
+        .attr('class', 'subAction');
+    bs
+        .classed('selected', false)
+        .text(function(d) { return d.n; });
+
+    var self = this;
+    bs.on('click', function(d) {
+      ShootGame.GAME.villain_.spend(-d.v);
+      d3.select(this).remove();
+      self.demands.splice(self.demands.indexOf(d), 1);
+
+      ShootGame.GAME.addParticle(new FloatText(
+          'you monster! we can\'t let you',
+          320, 420,
+          {t: 3, dy: -50, color: '#fff', font: '12px Helvetica'}));
+      ShootGame.GAME.addParticle(new FloatText(
+          d.n,
+          320, 432,
+          {t: 3, dy: -50, color: '#fff', font: '12px Helvetica'}));
+      ShootGame.GAME.addParticle(new FloatText(
+          '+$' + d.v,
+          320, 444,
+          {t: 3, dy: -50, color: '#34ab1c', font: '12px Helvetica'}));
+    });
   }, this);
 
   var endDayClick = function() {
@@ -170,8 +227,7 @@ BuildGame.prototype.makeHtml = function() {
   var buttons = [
     {name: 'fortify lair', unclick: fortifyUnclick, click: fortifyClick, sub: true},
     {name: 'buy real estate', click: blackMarketClick, sub: true},
-    {name: 'make demands'},
-    {name: 'taunt the hero'},
+    {name: 'make demands', click: demandClick, sub: true},
     {name: 'let the hero into the lair. it makes sense, trust me.', click: endDayClick},
   ];
 
@@ -202,6 +258,27 @@ BuildGame.prototype.makeHtml = function() {
 };
 
 BuildGame.prototype.levelOver = function() {
+  var possibleDemands = [{o: MINOR_THREATS.slice(), v: 12, c: 0}];
+  if (ShootGame.GAME.villain_.evilness >= 30) {
+    possibleDemands.push({o: MID_THREATS.slice(), v: 90, c: 30});
+  }
+  if (ShootGame.GAME.villain_.evilness >= 80) {
+    possibleDemands.push({o: BIG_THREATS.slice(), v: 120, c: 80});
+  }
+  if (ShootGame.GAME.villain_.evilness >= 250) {
+    possibleDemands.push({o: MEGA_THREATS.slice(), v: 290, c: 250});
+  }
+  this.demands = [];
+  var i = possibleDemands.length - 1;
+  var ev = ShootGame.GAME.villain_.evilness;
+  while (this.demands.length < 4) {
+    var pd = possibleDemands[i];
+    this.demands.unshift({n: pickPop(pd.o), v: pd.v});
+    ev -= pd.c;
+    if (ev < pd.c) i -= 1;
+    if (i < 0) i = 0;
+  }
+
   ShootGame.GAME.renderLevel = false;
   this.owner.selectAll('button').style('display', 'inherit');
   this.day++;
@@ -489,11 +566,12 @@ ShootGame.prototype.tick = function(t) {
           cy + randFlt(-10, 10),
           randFlt(40, 60), 1));
     }
-    this.addParticle(new FloatText('drats! foiled again!', cx, cy, {
+    this.addParticle(new FloatText(pick(TAUNTS), cx, cy, {
       dx: cx > 320 ? -10 : 10,
       dy: -10,
       align: cx > 320 ? 'right' : 'left',
       color: '#fff',
+      font: '16px Helvetica',
     }));
 
     this.addParticle(new NextLevelParticle());
@@ -619,8 +697,8 @@ MookController.prototype.tick = function(t) {
         this.dojump = true;
         this.doshoot = false;
       } else {
-        this.doleft = mx > hx;
-        this.doright = !this.doleft;
+        this.doleft = false;
+        this.doright = false;
         this.dojump = false;
         this.doshoot = true;
       }
