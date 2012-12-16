@@ -145,9 +145,9 @@ var requestAnimFrame = (function(){
 }());
 
 function Rgb(r, g, b) {
-  this.r = r;
-  this.g = g;
-  this.b = b;
+  this.r = Math.round(r);
+  this.g = Math.round(g);
+  this.b = Math.round(b);
 };
 
 Rgb.fromCss = function(cssStr) {
@@ -191,6 +191,66 @@ Rgb.prototype.toRgbString = function() {
                         this.b + ')';
   }
   return this.rgb_;
+};
+
+Rgb.Blend = function(a, b) {
+  var r = 0.5 * (a.r + b.r)
+  var g = 0.5 * (a.g + b.g)
+  var b = 0.5 * (a.b + b.b)
+  return new Rgb(r, g, b);
+};
+
+Rgb.prototype.toHsl = function() {
+  var r = this.r / 255;
+  var g = this.g / 255;
+  var b = this.b / 255;
+  var M = max([r, g, b]);
+  var m = min([r, g, b]);
+  var c = M - m;
+  var h;
+  if (M == m) {
+    h = 0;
+  } else if (M == r) {
+    h = ((g - b) / c) % 6;
+  } else if (M == g) {
+    h = (b - r) / c + 2;
+  } else {
+    h = (r - g) / c + 4;
+  }
+  h = h / 6;
+  var l = (M + m) / 2;
+  var s = c == 0 ? c : (c / (1 - Math.abs(2 * l - 1)));
+  return new Hsl(h, s, l);
+};
+
+Hsl = function(h, s, l) {
+  this.h = h;
+  this.s = s;
+  this.l = l;
+}
+
+Hsl.prototype.copy = function() {
+  return new Hsl(this.h, this.s, this.l);
+};
+
+Hsl.prototype.toRgb = function() {
+  var chroma = (1 - Math.abs(2 * this.l - 1)) * this.s;
+  if (this.h < 0 || this.h >= 1) {
+    return new Rgb(0, 0, 0);
+  }
+  var h = this.h * 6;
+  var x = chroma * (1 - Math.abs(h % 2 - 1));
+  var rgb;
+  switch (Math.floor(h)) {
+    case 0: rgb = [chroma, x, 0]; break;
+    case 1: rgb = [x, chroma, 0]; break;
+    case 2: rgb = [0, chroma, x]; break;
+    case 3: rgb = [0, x, chroma]; break;
+    case 4: rgb = [x, 0, chroma]; break;
+    case 5: rgb = [chroma, 0, x]; break;
+  }
+  var m = this.l - 0.5 * chroma;
+  return new Rgb(255 * (rgb[0] + m), 255 * (rgb[1] + m), 255 * (rgb[2]+ m));
 };
 
 Keys = {

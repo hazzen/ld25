@@ -56,19 +56,21 @@ var Ignore = {
 
 var BuildGame = function(owner) {
   this.owner = d3.select(owner);
+  this.day = 1;
+  BuildGame.GAME = this;
 };
 
 BuildGame.prototype.makeHtml = function() {
   owner = this.owner;
 
-  var buyThings = [
-    {name: 'mook [knife]', clazz: Mook.KNIFE},
-    {name: 'mook [gun]', clazz: Mook.GUN},
-    {name: 'mook [shotgun]', clazz: Mook.SHOTGUN},
+  var fortifyThings = [
+    {name: 'thug [knife]', clazz: Mook.KNIFE},
+    {name: 'thug [gun]', clazz: Mook.GUN},
+    {name: 'thug [shotgun]', clazz: Mook.SHOTGUN},
   ];
   var fortifyClick = function(o) {
     var bs = owner.select('.sub').selectAll('button.subAction')
-        .data(buyThings);
+        .data(fortifyThings);
     bs.exit().remove();
     bs.enter().append('button')
         .attr('class', 'subAction');
@@ -82,12 +84,34 @@ BuildGame.prototype.makeHtml = function() {
     });
   };
 
+  var blackMarketThings = [
+    {name: 'space laser', price: '6000'},
+    {name: 'submarine yard', price: '6000'},
+    {name: 'totally awesome lab', price: '6000'},
+    {name: 'moon base', price: '6000'},
+  ];
+  var blackMarketClick = function(o) {
+    var bs = owner.select('.sub').selectAll('button.subAction')
+        .data(blackMarketThings);
+    bs.exit().remove();
+    bs.enter().append('button')
+        .attr('class', 'subAction');
+    bs
+        .text(function(d) { return d.name + ' - $' + d.price; });
+
+    bs.on('click', function(d) {
+    });
+  };
+
   var endDayClick = function() {
     ShootGame.GAME.play();
+    owner.select('.sub').selectAll('button.subAction').remove();
+    owner.selectAll('button').style('display', 'none');
   };
 
   var buttons = [
     {name: 'fortify lair', click: fortifyClick, sub: true},
+    {name: 'black market', click: blackMarketClick, sub: true},
     {name: 'make demands'},
     {name: 'taunt the hero'},
     {name: 'end the day', click: endDayClick},
@@ -111,6 +135,14 @@ BuildGame.prototype.makeHtml = function() {
       owner.select('.sub').selectAll('button.subAction').remove();
     }
   });
+};
+
+BuildGame.prototype.levelOver = function() {
+  this.owner.selectAll('button').style('display', 'inherit');
+  this.day++;
+  ShootGame.GAME.setLevel(Level.loadFromString(
+      Level.randomOfHeight(Math.min(4, this.day)),
+      WAREHOUSE_BLOCKS));
 };
 
 var LevelEdit = function(game) {
@@ -340,12 +372,21 @@ ShootGame.prototype.tick = function(t) {
     this.hero_.collider_.cx(), this.hero_.collider_.cy());
   if (heroBlock && heroBlock == 'o' && !this.hero_.dead) {
     this.hero_.dead = true;
+    var cx = this.hero_.collider_.cx();
+    var cy = this.hero_.collider_.cy();
     for (var z = 0; z < 5; ++z) {
       this.addParticle(new Explosion(
-          this.hero_.collider_.cx() + randFlt(-10, 10),
-          this.hero_.collider_.cy() + randFlt(-10, 10),
+          cx + randFlt(-10, 10),
+          cy + randFlt(-10, 10),
           randFlt(40, 60), 1));
     }
+    this.addParticle(new FloatText('drats! foiled again!', cx, cy, {
+      dx: cx > 320 ? -10 : 10,
+      dy: -10,
+      align: cx > 320 ? 'right' : 'left',
+      color: '#fff',
+    }));
+
     this.addParticle(new NextLevelParticle());
   }
 
@@ -365,7 +406,7 @@ ShootGame.prototype.tick = function(t) {
   this.ents.forEach(tickFn);
   this.bullets.forEach(tickFn);
 
-  var collides = this.bullets.concat(this.enemies)
+  var collides = this.bullets.concat(this.enemies).concat([this.hero_])
       .filter(function(f) { return !f.dead; })
       .map(function(f) { return f.collider_; });
   Collider.stepAll(collides, t);
@@ -373,9 +414,16 @@ ShootGame.prototype.tick = function(t) {
     if (!bullet.dead) {
       if (bullet.collider_.lastCollision) {
         bullet.dead = true;
+        if (bullet.collider_.ignore & Ignore.MOOK) {
+          this.villain_.spend(-1);
+          this.addParticle(new FloatText(
+              '+$1',
+              bullet.collider_.cx(), bullet.collider_.y(),
+              {dx: 5, dy: -10, color: '#34ab1c'}));
+        }
       }
     }
-  });
+  }, this);
   this.enemies.forEach(function(enemy) {
     if (!enemy.dead) {
       if (enemy.collider_.lastCollision) {
@@ -521,19 +569,16 @@ Actor.prototype.tick = function(t) {
   var down = false;
   if (this.controller.left()) {
     this.facing = -1;
-    this.collider_.vx -= t * this.maxSpeed;
+    this.collider_.vx = -this.maxSpeed;
     down = true;
   }
   if (this.controller.right()) {
     this.facing = 1;
-    this.collider_.vx += t * this.maxSpeed;
+    this.collider_.vx = this.maxSpeed;
     down = true;
   }
   if (Math.abs(this.collider_.vx) > this.maxSpeed) {
     this.collider_.vx = sgn(this.collider_.vx) * this.maxSpeed;
-  } else if (Math.abs(this.collider_.vx) > 0.01) {
-    this.collider_.vx -= sgn(this.collider_.vx) *
-        Math.min(t * 50, Math.abs(this.collider_.vx));
   } else if (!down) {
     this.collider_.vx = 0;
   }
@@ -584,6 +629,7 @@ var Hero = function(x, y) {
     },
   });
 
+  this.collider_.ignore = Ignore.HERO;
   this.controller = new AiController(this);
 };
 inherit(Hero, Actor);
@@ -606,7 +652,7 @@ var Mook = function(x, y, opt_opts) {
 inherit(Mook, Actor);
 
 Mook.KNIFE = {
-  price: 3,
+  price: 1,
   make: function() {
     return new Mook(-100, -100, {
       shotDelay: 0.2,
@@ -619,7 +665,7 @@ Mook.KNIFE = {
   },
 };
 Mook.GUN = {
-  price: 8,
+  price: 3,
   make: function() {
     return new Mook(-100, -100, {
       shotDelay: 0.5,
@@ -627,13 +673,12 @@ Mook.GUN = {
   },
 };
 Mook.SHOTGUN = {
-  price: 13,
+  price: 8,
   make: function() {
     return new Mook(-100, -100, {
       shotDelay: 1,
       numBullets: 5,
       bullet: {
-        life: 0.4,
         vx: partial(randFlt, 150, 180),
         vy: partial(randFlt, -10, 10),
         w: 10,
@@ -719,8 +764,7 @@ NextLevelParticle.prototype.tick = function(t) {
   base(this, 'tick', t);
   if (this.dead && !this.done) {
     this.done = true;
-    ShootGame.GAME.setLevel(
-        Level.loadFromString(Level.randomOfHeight(2), DEFAULT_BLOCKS));
+    BuildGame.GAME.levelOver();
   }
 };
 
@@ -748,6 +792,7 @@ var FloatText = function(text, x, y, opts) {
   baseCtor(this, opts.t || 1);
   this.x = x;
   this.y = y;
+  this.align = opts.align || 'center';
   this.text = text;
   this.font = opts.font || '18px monospace';
   this.color = opts.color || '#000';
@@ -760,7 +805,7 @@ FloatText.prototype.render = function(renderer) {
   var ctx = renderer.context();
   ctx.save();
   ctx.font = this.font;
-  ctx.textAlign = 'center';
+  ctx.textAlign = this.align;
   ctx.testBaseline = 'middle';
   ctx.fillStyle = this.color;
   ctx.fillText(this.text,
@@ -785,55 +830,79 @@ function BlockMap(blocks) {
   this.blocks = blocks;
 };
 
-var DEFAULT_BLOCKS = {
-  '1': new Block(function(renderer, x, y) {
-         var ctx = renderer.context();
-         ctx.fillStyle = 'rgb(128, 128, 128)';
-         ctx.fillRect(x, y, Block.SIZE, Block.SIZE);
-       },
-       Block.COLLIDE_ALL),
+Block.RENDER_WALL = function(color) {
+  return function(renderer, x, y) {
+    var ctx = renderer.context();
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, Block.SIZE, Block.SIZE);
+  };
+};
 
-  '#': new Block(function(renderer, x, y) {
-         var ctx = renderer.context();
-         ctx.fillStyle = 'rgba(126, 106, 95, 0.5)';
-         ctx.fillRect(x, y, Block.SIZE, Block.SIZE);
-         ctx.fillStyle = 'rgba(126, 89, 70, 0.5)';
-         ctx.fillRect(x + 2, y + 2, Block.SIZE - 4, Block.SIZE - 4);
-         ctx.fillStyle = 'rgba(70, 56, 53, 0.5)';
-         for (var i = 1; i < 3; ++i) {
-           ctx.fillRect(x + i * Block.SIZE / 3 - 1, y + 2, 2, Block.SIZE - 4);
-         }
-       },
-       Block.COLLIDE_NONE),
+Block.RENDER_CRATE = function(hslColor, opt_a) {
+  var a = opt_a || 1;
+  var hsl = hslColor.copy();
+  var outline = hsl.toRgb().toCssString();
+  hsl.l *= 0.85;
+  var main = hsl.toRgb().toCssString();
+  hsl.l *= 0.7;
+  var detail = hsl.toRgb().toCssString();
+  return function(renderer, x, y) {
+    var ctx = renderer.context();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = outline;
+    ctx.fillRect(x, y, Block.SIZE, Block.SIZE);
+    ctx.fillStyle = main;
+    ctx.fillRect(x + 2, y + 2, Block.SIZE - 4, Block.SIZE - 4);
+    ctx.fillStyle = detail;
+    for (var i = 1; i < 3; ++i) {
+      ctx.fillRect(x + i * Block.SIZE / 3 - 1, y + 2, 2, Block.SIZE - 4);
+    }
+    ctx.globalAlpha = 1;
+  };
+};
+Block.RENDER_LIGHT = function(renderer, x, y) {
+  var ctx = renderer.context();
+  ctx.fillStyle = '#666';
+  ctx.fillRect(x, y, Block.SIZE, 4);
 
-  '2': new Block(function(renderer, x, y) {
-         var ctx = renderer.context();
-         ctx.fillStyle = 'rgb(126, 106, 95)';
-         ctx.fillRect(x, y, Block.SIZE, Block.SIZE);
-         ctx.fillStyle = 'rgb(126, 89, 70)';
-         ctx.fillRect(x + 2, y + 2, Block.SIZE - 4, Block.SIZE - 4);
-         ctx.fillStyle = 'rgb(70, 56, 53)';
-         for (var i = 1; i < 3; ++i) {
-           ctx.fillRect(x + i * Block.SIZE / 3 - 1, y + 2, 2, Block.SIZE - 4);
-         }
-       },
-       Block.COLLIDE_ALL),
+  ctx.fillStyle = 'rgba(255, 224, 122, 0.5)';
+  ctx.beginPath();
+  ctx.moveTo(x + Block.SIZE / 4, y + 4);
+  ctx.lineTo(x + 3 * Block.SIZE / 4, y + 4);
+  ctx.lineTo(x + 2 * Block.SIZE, y + 2 * Block.SIZE);
+  ctx.lineTo(x - Block.SIZE, y + 2 * Block.SIZE);
+  ctx.closePath();
+  ctx.fill();
+};
+Block.RENDER_L = function(renderer, x, y) {
+  var ctx = renderer.context();
+  ctx.fillStyle = '#111';
+  ctx.fillRect(x + Block.SIZE / 2, y, Block.SIZE / 2, Block.SIZE);
+  ctx.fillRect(x, y + Block.SIZE / 4, Block.SIZE / 2, Block.SIZE / 2);
+};
+Block.RENDER_R = function(renderer, x, y) {
+  var ctx = renderer.context();
+  ctx.fillStyle = '#111';
+  ctx.fillRect(x, y, Block.SIZE / 2, Block.SIZE);
+  ctx.fillRect(x + Block.SIZE / 2, y + Block.SIZE / 4, Block.SIZE / 2, Block.SIZE / 2);
+};
+Block.RENDER_U = function(renderer, x, y) {
+  var ctx = renderer.context();
+  ctx.fillStyle = '#111';
+  ctx.fillRect(x, y, Block.SIZE, Block.SIZE / 2);
+  ctx.fillRect(x + Block.SIZE / 4, y + Block.SIZE / 2, Block.SIZE / 2, Block.SIZE / 2);
+};
 
-  '-': new Block(function(renderer, x, y) {
-         var ctx = renderer.context();
-         ctx.fillStyle = '#666';
-         ctx.fillRect(x, y, Block.SIZE, 4);
+var WAREHOUSE_BLOCKS = {
+  '1': new Block(Block.RENDER_WALL('#888'), Block.COLLIDE_ALL),
 
-         ctx.fillStyle = 'rgba(255, 224, 122, 0.5)';
-         ctx.beginPath();
-         ctx.moveTo(x + Block.SIZE / 4, y + 4);
-         ctx.lineTo(x + 3 * Block.SIZE / 4, y + 4);
-         ctx.lineTo(x + 2 * Block.SIZE, y + 2 * Block.SIZE);
-         ctx.lineTo(x - Block.SIZE, y + 2 * Block.SIZE);
-         ctx.closePath();
-         ctx.fill();
-       },
-       Block.COLLIDE_TOP),
+  '#': new Block(Block.RENDER_CRATE(new Hsl(21 / 255, 0.14, 0.43), 0.5),
+                 Block.COLLIDE_NONE),
+
+  '2': new Block(Block.RENDER_CRATE(new Hsl(21 / 255, 0.14, 0.43)),
+                 Block.COLLIDE_ALL),
+
+  '-': new Block(Block.RENDER_LIGHT, Block.COLLIDE_TOP),
 
   'o': new Block(function(renderer, x, y) {
          var ctx = renderer.context();
@@ -842,36 +911,19 @@ var DEFAULT_BLOCKS = {
        },
        Block.COLLIDE_NONE),
 
-
-  '>': new Block(function(renderer, x, y) {
-         var ctx = renderer.context();
-         ctx.fillStyle = '#111';
-         ctx.fillRect(x, y, Block.SIZE / 2, Block.SIZE);
-         ctx.fillRect(x + Block.SIZE / 2, y + Block.SIZE / 4, Block.SIZE / 2, Block.SIZE / 2);
-       },
-       Block.COLLIDE_NONE),
-
-  '<': new Block(function(renderer, x, y) {
-         var ctx = renderer.context();
-         ctx.fillStyle = '#111';
-         ctx.fillRect(x + Block.SIZE / 2, y, Block.SIZE / 2, Block.SIZE);
-         ctx.fillRect(x, y + Block.SIZE / 4, Block.SIZE / 2, Block.SIZE / 2);
-       },
-       Block.COLLIDE_NONE),
-
-  '^': new Block(function(renderer, x, y) {
-         var ctx = renderer.context();
-         ctx.fillStyle = '#111';
-         ctx.fillRect(x, y, Block.SIZE, Block.SIZE / 2);
-         ctx.fillRect(x + Block.SIZE / 4, y + Block.SIZE / 2, Block.SIZE / 2, Block.SIZE / 2);
-       },
-
-       Block.COLLIDE_NONE),
+  '>': new Block(Block.RENDER_R, Block.COLLIDE_NONE),
+  '<': new Block(Block.RENDER_L, Block.COLLIDE_NONE),
+  '^': new Block(Block.RENDER_U, Block.COLLIDE_NONE),
 };
 
-for (var b in DEFAULT_BLOCKS) {
-  DEFAULT_BLOCKS[b.charCodeAt(0)] = DEFAULT_BLOCKS[b];
+for (var b in WAREHOUSE_BLOCKS) {
+  WAREHOUSE_BLOCKS[b.charCodeAt(0)] = WAREHOUSE_BLOCKS[b];
 }
+/*
+for (var b in SUBYARD_BLOCKS) {
+  SUBYARD_BLOCKS[b.charCodeAt(0)] = WAREHOUSE_BLOCKS[b];
+}
+*/
 
 var RIGHT_BLOCKS = [
   [
